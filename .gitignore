@@ -1,0 +1,9 @@
+.env
+.pytest_cache
+# workbooks/generated_code/*
+.vscode
+.mypy_cache/
+*.pyc
+.coverage
+__pycache__/
+.ruff_cache
