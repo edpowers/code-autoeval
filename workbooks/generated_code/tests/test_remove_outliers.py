@@ -6,28 +6,28 @@ import pytest
 
 
 def test_remove_outliers_numerical():
-    data = {'A': [1, 2, 3, 4, 5, 100]}
+    data = {'values': [1, 2, 3, 4, 5, 100]}
     df = pd.DataFrame(data)
-    result = remove_outliers(df, 'A')
-    expected = pd.DataFrame({'A': [1, 2, 3, 4, 5]})
+    result = remove_outliers(df, 'values')
+    expected = pd.DataFrame({'values': [1, 2, 3, 4, 5]})
     pd.testing.assert_frame_equal(result, expected)
 
 def test_remove_outliers_non_numerical():
-    data = {'B': ['a', 'b', 'c']}
+    data = {'values': ['a', 'b', 'c']}
     df = pd.DataFrame(data)
-    result = remove_outliers(df, 'B')
+    result = remove_outliers(df, 'values')
     assert df.equals(result)
 
 def test_remove_outliers_empty_column():
-    data = {'C': []}
+    data = {'values': []}
     df = pd.DataFrame(data)
-    result = remove_outliers(df, 'C')
-    expected = pd.DataFrame({'C': []})
+    result = remove_outliers(df, 'values')
+    expected = pd.DataFrame({'values': []})
     pd.testing.assert_frame_equal(result, expected)
 
-def test_remove_outliers_large_values():
-    data = {'D': [1, 2, 3, 4, 5, 1000]}
+def test_remove_outliers_all_same_value():
+    data = {'values': [5, 5, 5, 5]}
     df = pd.DataFrame(data)
-    result = remove_outliers(df, 'D')
-    expected = pd.DataFrame({'D': [1, 2, 3, 4, 5]})
+    result = remove_outliers(df, 'values')
+    expected = pd.DataFrame({'values': [5, 5, 5, 5]})
     pd.testing.assert_frame_equal(result, expected)

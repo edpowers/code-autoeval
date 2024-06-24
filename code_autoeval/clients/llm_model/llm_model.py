@@ -25,6 +25,7 @@ class LLMModel(GenerateFakeData, DeciperResponse, SystemPrompts, ExecuteGenerate
     """LLM Backend Client Model."""
 
     func_name: str = ""
+    model_name: str
 
     def __init__(self, **kwargs: BackendModelKwargs) -> None:
         """Initialize the LLM Backend Client Model."""
@@ -88,11 +89,10 @@ class LLMModel(GenerateFakeData, DeciperResponse, SystemPrompts, ExecuteGenerate
                 c = await self.ask_backend_model(
                     clarification_prompt,
                     system_prompt=system_prompt,
-                    model="coder-lite:latest",
                 )
             else:
                 c = await self.ask_backend_model(
-                    query, system_prompt=system_prompt, model="coder-lite:latest"
+                    query, system_prompt=system_prompt
                 )
             content = self.figure_out_model_response(c)
 

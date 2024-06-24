@@ -7,6 +7,11 @@ Other major changes:
 1. Having the LLM construct fake testing data using the faker library.
 2. Writing unit tests and achieving 100% coverage for the generated code.
 
+#### Requirements
+1. A working poetry installation. Please see [Poetry Installation](https://python-poetry.org/docs/) for steps to install.
+2. A backend LLM or OpenAI url to supply as environment variable: OPENAI_BASE_URL
+3. The model name environment variable: OPENAI_MODEL_NAME
+
 #### Installation
 Requires Poetry. When specifying individual libraries for the code-autogen, those need to be installed within the environment as well.
 

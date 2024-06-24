@@ -14,8 +14,13 @@ class StreamResponse():
 
     def __init__(self) -> None:
         """Initialize the LLM Backend Client Model."""
-        self._model = None
+        load_dotenv()
+        self.model_name = self._instantiate_model_name()
         self._model_url = self._instantiate_model_url()
+
+    def _instantiate_model_name(self) -> str:
+        """Instantiate the model name."""
+        return os.getenv("OPENAI_MODEL_NAME", "coder-lite:latest")
 
     def _instantiate_model_url(self) -> str:
         """Instantiate the model URL."""
@@ -27,7 +32,6 @@ class StreamResponse():
         self,
         user_content: str,
         system_prompt: str = "You are a helpful AI assistant. Provide clear and concise responses.",
-        model: str = "coder-lite:latest",
         **kwargs: Dict[str, Any],
     ) -> Dict[str, str]:
         """
@@ -36,14 +40,13 @@ class StreamResponse():
         Args:
         user_content (str): The user's input query.
         system_prompt (str): The system prompt to guide the model's behavior.
-        model (str): The name of the model to use.
         **kwargs: Additional keyword arguments to pass to the API.
 
         Returns:
         Dict[str, str]: A dictionary containing the full response from the model.
         """
         payload = {
-            "model": model,
+            "model": self.model_name,
             "prompt": user_content,
             "system": system_prompt,
             "stream": True,

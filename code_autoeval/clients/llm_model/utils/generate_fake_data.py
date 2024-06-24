@@ -38,7 +38,7 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
         """
 
         fake_data_response = await self.ask_backend_model(
-            fake_data_prompt, system_prompt="", model="coder-lite:latest"
+            fake_data_prompt, system_prompt=""
         )
 
         content = self.figure_out_model_response_for_faker(fake_data_response)
