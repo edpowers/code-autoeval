@@ -4,6 +4,9 @@ version = "0.1.0"
 description = "Package for interacting with backend LLM to execute Python code and auto-iterate"
 authors = ["Ed Powers <ed.a.powers@gmail.com>"]
 readme = "README.md"
+packages = [
+    { include = "code_autoeval", from = "." },
+]
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.13"
