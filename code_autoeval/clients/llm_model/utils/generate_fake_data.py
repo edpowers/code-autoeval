@@ -1,5 +1,6 @@
 """Generate Fake Data."""
 
+import asyncio
 import random
 import re
 from typing import Any, Callable, Optional
@@ -17,7 +18,28 @@ from code_autoeval.clients.llm_model.utils.stream_response import StreamResponse
 class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
     """Generate the fake data."""
 
-    async def generate_fake_data(self,func: Callable[..., Any], df: Optional[pd.DataFrame] = None, debug: bool = False, skip_generate_fake_data: bool = False) -> pd.DataFrame:
+    # @persistent_cache
+    def generate_fake_data(
+        self,
+        func: Callable[..., Any],
+        df: Optional[pd.DataFrame] = None,
+        debug: bool = False,
+        skip_generate_fake_data: bool = False,
+    ) -> pd.DataFrame:
+        """
+        Generate fake data based on the function signature if needed.
+        """
+        return asyncio.run(
+            self.async_generate_fake_data(func, df, debug, skip_generate_fake_data)
+        )
+
+    async def async_generate_fake_data(
+        self,
+        func: Callable[..., Any],
+        df: Optional[pd.DataFrame] = None,
+        debug: bool = False,
+        skip_generate_fake_data: bool = False,
+    ) -> pd.DataFrame:
         """
         Generate fake data based on the function signature if needed.
         """
@@ -47,7 +69,9 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
             print("Raw content from model:\n", content)
 
         # Extract the code part
-        parts = re.split(r"[# ]{0,2}Expected Output:|### Expected Output:", content, maxsplit=1)
+        parts = re.split(
+            r"[# ]{0,2}Expected Output:|### Expected Output:", content, maxsplit=1
+        )
         code = parts[0].strip()
 
         code = self.clean_code(code)
@@ -61,13 +85,13 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
 
         try:
             # Set up the execution environment
-            local_vars = {'pd': pd, 'Faker': Faker, 'random': random}
+            local_vars = {"pd": pd, "Faker": Faker, "random": random}
 
             # Execute the code
             exec(code, local_vars)
 
             # Retrieve the generated fake_data
-            fake_data = local_vars.get('fake_data')
+            fake_data = local_vars.get("fake_data")
 
             if not isinstance(fake_data, pd.DataFrame):
                 raise ValueError("The generated fake data is not a pandas DataFrame")
@@ -89,8 +113,8 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
         if isinstance(response, str):
             return response
         elif isinstance(response, dict):
-            if 'response' in response:
-                return response['response']
-            elif 'content' in response:
-                return response['content']
+            if "response" in response:
+                return response["response"]
+            elif "content" in response:
+                return response["content"]
         raise ValueError(f"Unexpected response format from the model: {response}")

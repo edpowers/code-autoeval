@@ -10,18 +10,20 @@ import sys
 import tempfile
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-import black
 import numpy as np
 import pandas as pd
 
-from code_autoeval.clients.llm_model.utils.serializing_dataframes import (
-    SerializeDataframes,
+from code_autoeval.clients.llm_model.utils import (
+    preprocess_code_before_execution,
+    serializing_dataframes,
 )
 
 
-class ExecuteGeneratedCode(SerializeDataframes):
+class ExecuteGeneratedCode(
+    serializing_dataframes.SerializeDataframes,
+    preprocess_code_before_execution.PreProcessCodeBeforeExecution,
+):
 
-    func_name: str = ""
     imported_libraries: set = set()
 
     def get_imported_libraries(self) -> set:
@@ -33,7 +35,7 @@ class ExecuteGeneratedCode(SerializeDataframes):
         code: str,
         func: Callable[..., Any],
         df: Optional[pd.DataFrame] = None,
-        debug: bool = False
+        debug: bool = False,
     ) -> Tuple[Any, Dict[str, Any]]:
         """
         Executes the generated Python code and returns the result and context.
@@ -48,13 +50,14 @@ class ExecuteGeneratedCode(SerializeDataframes):
             print("Original code:\n", code)  # Debug print
 
         # Remove markdown code blocks if present
-        code = re.sub(r"```python\n|```", "", code).strip()
-
+        code = self.clean_code(code)
         # Format the code using Black
-        try:
-            formatted_code = black.format_str(code, mode=black.FileMode())
-        except black.InvalidInput as e:
-            raise Exception(f"Error formatting code: {str(e)}\nCode:\n{code}") from e
+        formatted_code = self.format_code_with_black(code)
+
+        if func.__name__ not in formatted_code:
+            raise ValueError(
+                f"Function name '{func.__name__}' not found in the formatted code."
+            )
 
         if debug:
             print("Formatted code:\n", formatted_code)  # Debug print
@@ -64,10 +67,10 @@ class ExecuteGeneratedCode(SerializeDataframes):
 
         # Add necessary imports and functions to the global scope
         global_vars = {
-            'pd': pd,
-            'np': np,
-            'deserialize_dataframe': self.deserialize_dataframe,
-            'logging': logging  # Add logging explicitly
+            "pd": pd,
+            "np": np,
+            "deserialize_dataframe": self.deserialize_dataframe,
+            "logging": logging,  # Add logging explicitly
         }
 
         # Add all previously imported libraries
@@ -76,7 +79,7 @@ class ExecuteGeneratedCode(SerializeDataframes):
 
         # Add the input dataframe to the local variables if provided
         if df is not None:
-            local_vars['df'] = df
+            local_vars["df"] = df
 
         # Extract import statements
         imports = self.extract_imports(formatted_code)
@@ -86,7 +89,9 @@ class ExecuteGeneratedCode(SerializeDataframes):
         # Execute imports separately
         exec(imports, global_vars)
         # Remove import statements from the main code
-        main_code = re.sub(r'^(import|from) .*\n?', '', formatted_code, flags=re.MULTILINE)
+        main_code = re.sub(
+            r"^(import|from) .*\n?", "", formatted_code, flags=re.MULTILINE
+        )
 
         # Execute the code
         try:
@@ -98,7 +103,6 @@ class ExecuteGeneratedCode(SerializeDataframes):
                     global_vars[lib] = importlib.import_module(lib)
 
             exec(main_code, global_vars, local_vars)
-
 
             self.func_name = self._find_func_name(func, local_vars)
 
@@ -115,7 +119,11 @@ class ExecuteGeneratedCode(SerializeDataframes):
             result = self.deserialize_dataframe(result)
 
             # Get the context (all variables in the local scope)
-            context = {k: v for k, v in local_vars.items() if not k.startswith("__") and k != 'df'}
+            context = {
+                k: v
+                for k, v in local_vars.items()
+                if not k.startswith("__") and k != "df"
+            }
 
             # Deserialize any DataFrames in the context
             context = {k: self.deserialize_dataframe(v) for k, v in context.items()}
@@ -130,15 +138,17 @@ class ExecuteGeneratedCode(SerializeDataframes):
     def import_required_libraries(self, code: str) -> None:
         """Import required libraries based on the generated code."""
         # Run flake8 to get import statements
-        with tempfile.NamedTemporaryFile(mode='w', suffix='.py', delete=False) as temp_file:
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".py", delete=False
+        ) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
 
         try:
             flake8_result = subprocess.run(
-                ['flake8', '--select=F401', temp_file_path],
+                ["flake8", "--select=F401", temp_file_path],
                 capture_output=True,
-                text=True
+                text=True,
             )
 
             # Extract library names from flake8 output
@@ -146,7 +156,7 @@ class ExecuteGeneratedCode(SerializeDataframes):
             for line in flake8_result.stdout.splitlines():
                 parts = line.split("'")
                 if len(parts) >= 2:
-                    lib = parts[1].split('.')[0]
+                    lib = parts[1].split(".")[0]
                     libraries.add(lib)
 
             # Import libraries that are not already imported
@@ -163,10 +173,10 @@ class ExecuteGeneratedCode(SerializeDataframes):
 
     def extract_imports(self, code: str) -> str:
         import_lines = []
-        for line in code.split('\n'):
-            if line.strip().startswith('import ') or line.strip().startswith('from '):
+        for line in code.split("\n"):
+            if line.strip().startswith("import ") or line.strip().startswith("from "):
                 import_lines.append(line)
-        return '\n'.join(import_lines)
+        return "\n".join(import_lines)
 
     def _find_func_name(self, func: Callable, local_vars: dict) -> str:
         # Find the function name
@@ -177,13 +187,15 @@ class ExecuteGeneratedCode(SerializeDataframes):
 
         return func_name
 
-    def find_args_for_generated_function(self, generated_func: Callable, df: pd.DataFrame, debug: bool = False) -> List[str|pd.DataFrame]:
+    def find_args_for_generated_function(
+        self, generated_func: Callable, df: pd.DataFrame, debug: bool = False
+    ) -> List[str | pd.DataFrame]:
         """Find the arguments for the generated function."""
         # Prepare arguments for the function call
         sig = inspect.signature(generated_func)
         args = []
         for param_name, param in sig.parameters.items():
-            if param_name == 'df':
+            if param_name == "df":
                 if df is not None:
                     args.append(df)
                 else:
@@ -196,7 +208,9 @@ class ExecuteGeneratedCode(SerializeDataframes):
                 args.append(param.default)
             else:
                 # For other cases, raise an error
-                raise ValueError(f"Unable to determine value for parameter '{param_name}'")
+                raise ValueError(
+                    f"Unable to determine value for parameter '{param_name}'"
+                )
 
         if debug:
             print(f"Calling {self.func_name} with args: {args}")

@@ -1,6 +1,5 @@
 """Stream the response from the backend model."""
 
-
 import json
 import os
 from typing import Any, AsyncIterator, Dict
@@ -9,7 +8,7 @@ import httpx
 from dotenv import load_dotenv
 
 
-class StreamResponse():
+class StreamResponse:
     """Stream response from the backend model."""
 
     def __init__(self) -> None:
@@ -26,7 +25,6 @@ class StreamResponse():
         """Instantiate the model URL."""
         load_dotenv()
         return os.getenv("OPENAI_BASE_URL", "")
-
 
     async def ask_backend_model(
         self,
@@ -69,10 +67,12 @@ class StreamResponse():
 
         return {"response": full_response}
 
-
     async def stream_response(
-    self, url: str, payload: Dict[str, Any]
-) -> AsyncIterator[Dict[str, Any]]:
+        self,
+        url: str,
+        payload: Dict[str, Any],
+        timeout: int = 15,
+    ) -> AsyncIterator[Dict[str, Any]]:
         """Streams the response from the API, yielding each chunk as it's received.
 
         Args:
@@ -86,7 +86,9 @@ class StreamResponse():
         Exception: If the HTTP status code is not 200.
         """
         async with httpx.AsyncClient() as client:
-            async with client.stream("POST", url, json=payload) as response:
+            async with client.stream(
+                "POST", url, json=payload, timeout=timeout
+            ) as response:
                 if response.status_code != 200:
                     raise Exception(
                         f"Error: {response.status_code}, {await response.text()}"
