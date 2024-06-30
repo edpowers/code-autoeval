@@ -70,57 +70,129 @@ async def main2() -> None:
 # Run the async main function
 asyncio.run(main2())
 
+
 # %%
 
 
-import random
+from pprint import pprint
 
-import numpy as np
-import pandas as pd
-from faker import Faker
+pprint(
+    """import pytest\nfor the `LLMModel.__init__` method:\n\n```python\nimport pytest\nfrom code_autoeval.model import LLMModel, BackendModelKwargs\n\ndef test_normal_case():\n    # Test normal use case with no additional kwargs\n    model = LLMModel()\n    assert hasattr(model, 'kwargs') and model.kwargs is None\n\ndef test_edge_case_with_kwargs():\n    # Test edge case with some kwargs provided\n    kwargs = {'key1': 'value1', 'key2': 42}\n    model = LLMModel(**kwargs)\n    assert hasattr(model, 'kwargs') and model.kwargs == kwargs\n\ndef test_error_condition_with_invalid_arg():\n    # Test error condition with invalid argument type\n    with pytest.raises(TypeError):\n        LLMModel(invalid_arg='not a valid kwarg')\n\ndef test_index_and_data_integrity_with_pandas():\n    # Test that the method handles pandas DataFrame and Series correctly\n    import pandas as pd\n    \n    df = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})\n    series = pd.Series([10, 20])\n    \n    model_df = LLMModel(data=df)\n    assert isinstance(model_df.kwargs['data'], pd.DataFrame) and model_df.kwargs['data'].equals(df)\n    \n    model_series = LLMModel(data=series)\n    assert isinstance(model_series.kwargs['data'], pd.Series) and model_series.kwargs['data'].equals(series)\n```\n\nThese tests cover normal use cases, edge cases, and error conditions to ensure the `LLMModel.__init__` method behaves as expected."""
+)
 
+# %%
 
-    if df[column].dtype not in [
-        np.number,
-        np.int64,
-        np.float64,
-        np.float32,
-        np.int32,
-        np.int16,
-        np.float16,
-    ]:
-        print(f"Column '{column}' does not contain numerical data.")
-        return df
+pprint(
+    """import pytest\nthe function\ndef test_normal_case():\n    # Normal use case where kwargs are provided\n    model = LLMModel(param1='value1', param2='value2')\n    assert hasattr(model, 'param1') and getattr(model, 'param1') == 'value1'\n    assert hasattr(model, 'param2') and getattr(model, 'param2') == 'value2'\n\ndef test_edge_case_no_kwargs():\n    # Edge case where no kwargs are provided\n    model = LLMModel()\n    assert not hasattr(model, 'param1')\n    assert not hasattr(model, 'param2')\n\ndef test_error_condition_invalid_kwarg():\n    # Error condition where an invalid kwarg is provided\n    with pytest.raises(TypeError):\n        model = LLMModel(invalid_param='value')\n\n# Add more tests to ensure 100% coverage\n```\nThis set of tests ensures that the `LLMModel` class can be initialized correctly with valid and invalid keyword arguments, as well as handle cases where no arguments are provided."""
+)
 
-    Q1 = df[column].quantile(0.25)
-    Q3 = df[column].quantile(0.75)
-    IQR = Q3 - Q1
-    lower_bound = Q1 - 1.5 * IQR
-    upper_bound = Q3 + 1.5 * IQR
+# %%
 
-    filtered_df = df[(df[column] >= lower_bound) & (df[column] <= upper_bound)]
-    return filtered_df
+code = "# REMOVED DUE TO PARSING ERROR: The `LLMModel.__init__` method is a constructor that initializes an instance of the `LLMModel` class, inheriting from its superclass and passing any provided keyword arguments (`**kwargs`) to it. This method does not return anything but sets up the object's state based on the provided parameters.\n\n\n# Assuming LLMModel is defined somewhere in your codebase\nclass LLMModel:\n    def __init__(self, **kwargs):\n        super().__init__(**kwargs)\n"
+
+import ast
 
 
-# Initialize Faker and create fake data
-fake = Faker()
-data = {
-    "name": [fake.name() for _ in range(100)],
-    "age": [random.randint(18, 65) for _ in range(100)],
-    "income": [random.uniform(20000, 100000) for _ in range(100)],
-    "date": [
-        fake.date_between(start_date="-30y", end_date="today") for _ in range(100)
+def find_target_in_code(code: str, target_name: str) -> ast.AST:
+    """
+    Parse the code and find the target function or class.
+
+    :param code: The code string to parse
+    :param target_name: The name of the function or class to find
+    :return: The AST node of the target function or class, or None if not found
+    """
+    tree = ast.parse(code)
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, (ast.FunctionDef, ast.ClassDef))
+            and node.name == target_name
+        ):
+            return node
+
+    return None
+
+
+target_name = "LLMModel.__init__"
+target_node = find_target_in_code(code, target_name)
+
+
+# %%
+# %%
+
+
+tree = ast.parse(code)
+tree
+# %%
+
+for node in ast.walk(tree):
+    print(node)
+
+    if isinstance(node, ast.ClassDef):
+        break
+
+# %%
+
+
+display(dir(node))
+
+# %%
+
+node.name
+
+# %%
+
+
+subprocess.run(
+    [
+        "pytest",
+        "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel.py",
+        "-v",
+        "--cov=/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel.py",
+        "--cov-report=term-missing",
+        "--cov-fail-under=100",
+    ]
+)
+
+# %%
+import subprocess
+
+subprocess.run(
+    args=[
+        "pytest",
+        "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel.py",
+        "-v",
+        "--cov=code_autoeval.clients.llm_model.llm_model.LLMModel",
+        "--cov-report=term-missing",
+        "--cov-fail-under=100",
     ],
-}
+)
 
-# Create DataFrame
-fake_data = pd.DataFrame(data)
+# %%
 
-# Remove outliers from the 'age' column
-cleaned_data = remove_outliers(fake_data, "age")
-print("Original Data:")
-print(fake_data)
-print("\nCleaned Data (after removing age outliers):")
-print(cleaned_data)
+subprocess.run(
+    args=[
+        "pytest",
+        "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel.py",
+        "-v",
+        "--cov=code_autoeval",
+        "--cov-report=term-missing",
+        "--cov-fail-under=100",
+    ],
+)
+# %%
+
+
+
+subprocess.run(
+    args=[
+        "pytest",
+        "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel.py",
+        "-v",
+        "--cov=code_autoeval",
+        "--cov-report=term-missing",
+        "--cov-fail-under=100",
+    ],
+)
+
 
 # %%

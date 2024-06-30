@@ -5,12 +5,14 @@ import re
 import subprocess
 import tempfile
 from pathlib import Path
+from pprint import pprint
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import pandas as pd
 from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
 
+from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
 from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
@@ -27,52 +29,41 @@ class NoTestsInPytestFile(Exception):
 class ExecuteUnitTests(PreProcessCodeBeforeExecution):
 
     coverage_result: subprocess.CompletedProcess = None
-    file_path: str = None
-    test_file_path: str = None
 
     def write_code_and_tests(
         self,
         code: str,
         pytest_tests: str,
         func: Callable,
+        class_model: Optional[ClassDataModel] = None,
     ) -> None:
 
-        self._validate_test_in_pytests_file(pytest_tests)
-        # Create the function name:
-        func_name = func.__name__
-        # Preprocess the code and tests
-        code = self.preprocess_code(code)
-        pytest_tests = self.preprocess_code(pytest_tests)
+        self.validate_test_in_pytest_code(pytest_tests)
 
-        self._validate_test_in_pytests_file(pytest_tests)
+        if not class_model:
+            code = self.run_preprocess_pipeline(
+                code,
+                code_type="function",
+                func_name=self.init_kwargs.func_name,
+                class_model=class_model,
+            )
 
-        # Clean up the code and tests
-        code = self.clean_code(code)
-        pytest_tests = self.clean_code(pytest_tests)
-
-        # Remove any inject text from the LLM that throws a syntax error.
-        code = self.format_code_with_black(code)
-        pytest_tests = self.format_code_with_black(pytest_tests)
+        pytest_tests = self.run_preprocess_pipeline(
+            pytest_tests,
+            code_type="pytest",
+            func_name=self.init_kwargs.func_name,
+            class_model=class_model,
+        )
 
         # If there's no function named test within the pytests_tests,
-        # then raise a
-
+        # then raise an error.
         self.file_path, self.test_file_path, self.absolute_path_from_root = (
-            self._construct_file_path_and_test_path(func)
+            self._construct_file_path_and_test_path(func, class_model)
         )
 
-        self._validate_test_in_pytests_file(pytest_tests)
-
-        # Ensure proper imports in the test file
-        pytest_tests = self.ensure_imports(
-            pytest_tests,
-            func_name,
-            absolute_path_from_root=self.absolute_path_from_root,
+        self._log_code(
+            str(self.absolute_path_from_root), intro_message="absolute_path_from_root:"
         )
-        # Create the directory if it does not exist
-        os.makedirs(Path(self.file_path).parent, exist_ok=True, mode=0o777)
-        # Create the directory if it does not exist
-        os.makedirs(Path(self.test_file_path).parent, exist_ok=True, mode=0o777)
 
         # Write the main code to a file
         with open(self.file_path, "w") as f:
@@ -85,71 +76,58 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
         print(f"Main code written to {self.file_path}")
         print(f"Pytest tests written to {self.test_file_path}")
 
-    def _validate_test_in_pytests_file(self, pytests_tests: str) -> None:
-        """Validate that the pytests_test contains a test."""
-        if "def test" not in pytests_tests:
-            raise NoTestsInPytestFile(
-                f"No valid test function definition in {pytests_tests}"
-            )
-
     def _construct_file_path_and_test_path(
-        self, func: Callable
-    ) -> Tuple[str, str, str]:
+        self, func: Callable, class_model: Optional[ClassDataModel] = None
+    ) -> Tuple[Path, Path, Path]:
         # Get the absolute path of the function's module
         module_path = Path(SystemUtils.get_class_file_path(func))
-
-        # Find the project root
-        try:
-            project_root = SystemUtils.find_project_root(module_path)
-        except FileNotFoundError:
-            # Fallback to using the parent of the module path if project root can't be determined
-            project_root = module_path.parent
-
         # Create the relative path from the project root
-        relative_path = module_path.relative_to(project_root)
+        relative_path = module_path.relative_to(self.common.project_root)
 
-        # Create the function name
-        func_name = func.__name__
-
-        # Construct the new file paths
-        base_directory = Path("generated_code")
-
-        self.absolute_path_from_root: str = str(
-            base_directory / relative_path.parent / f"{func_name}.py"
+        func_name = (
+            class_model.class_name if class_model else self.init_kwargs.func_name
         )
 
-        self.file_path: str = str(project_root / self.absolute_path_from_root)
+        # Get the directory containing generated_code
+        self.absolute_path_from_root = (
+            self.common.generated_base_dir / relative_path.parent / f"{func_name}.py"
+        )
+
+        self.file_path = self.common.project_root / self.absolute_path_from_root
 
         # Construct the test file path
-        self.test_file_path: str = str(
-            project_root
-            / base_directory
+        self.test_file_path = (
+            self.common.generated_base_dir
             / "tests"
             / relative_path.parent
             / f"test_{func_name}.py"
         )
 
+        SystemUtils.make_file_dir(self.file_path)
+        SystemUtils.make_file_dir(self.test_file_path)
+
         return self.file_path, self.test_file_path, self.absolute_path_from_root
 
     def run_tests(
-        self, func_name: str, df: Optional[pd.DataFrame] = None, debug: bool = False
+        self,
+        func_name: str,
+        file_path: Path,
+        test_file_path: Path,
+        df: Optional[pd.DataFrame] = None,
+        debug: bool = False,
+        class_model: Optional[ClassDataModel] = None,
     ) -> bool:
-        if self.test_file_path is None:
+        if not self.test_file_path:
             raise ValueError("No test file path set. Please write tests first.")
 
-        # func_name = os.path.basename(self.test_file_path)[5:-3]  # Remove 'test_' prefix and '.py' suffix
-        print("\nRunning pytest with coverage:")
-
-        # Get the directory containing generated_code
-        base_dir = os.path.dirname(os.path.dirname(self.test_file_path))
         # Get the absolute path from the project root
-        format_abs_path_from_root = self.absolute_path_from_root.replace(
-            "/", "."
-        ).replace(".py", "")
+        format_test_path = SystemUtils.format_path_for_import(test_file_path)
+        # Remove the project root from the path
+        format_test_path_repl = (
+            str(format_test_path).replace(f"{self.common.project_root}.", "").strip(".")
+        )
 
-        if debug:
-            print(f"base_dir: {base_dir}")
-            print(f"format_abs_path_from_root: {format_abs_path_from_root}")
+        self._log_test_coverage_path(format_test_path_repl)
 
         # Create a temporary file to store the dataframe if provided
         if df is not None:
@@ -161,20 +139,29 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
         else:
             df_path = None
 
+        # File path would be the generated path
+        code_path_to_cover = (
+            class_model.absolute_path.rsplit(".")[0]
+            if class_model
+            else file_path.parent
+        )
+
+        self._log_code(code_path_to_cover, intro_message="code_path_to_cover: ")
+
         try:
             # Prepare the pytest command
             pytest_command = [
                 "pytest",
-                self.test_file_path,
+                str(self.test_file_path.resolve()),
                 "-v",
-                f"--cov={format_abs_path_from_root}",
+                f"--cov={code_path_to_cover}",
                 "--cov-report=term-missing",
                 "--cov-fail-under=100",
             ]
 
             # Set up the environment with the updated PYTHONPATH
-            env = os.environ.copy()
-            env["PYTHONPATH"] = f"{base_dir}:{env.get('PYTHONPATH', '')}"
+            # env = os.environ.copy()
+            # env["PYTHONPATH"] = f"{self.project_root}:{env.get('PYTHONPATH', '')}"
 
             # Add dataframe path as a command-line option if available
             # TODO: Add in this functionality so that it works with latest pytest.
@@ -188,18 +175,20 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
                 text=True,
             )
 
-            # Print the pytest output
-            print(self.coverage_result.stdout)
-            if self.coverage_result.stderr:
-                print("Errors:")
-                print(self.coverage_result.stderr)
+            self._log_coverage_results(self.coverage_result)
 
             try:
                 coverage_data = self.parse_coverage(
-                    self.coverage_result.stdout, self.file_path
+                    self.coverage_result.stdout, str(self.file_path)
                 )
-                target_coverage = coverage_data[self.file_path]
+
+                # Find the only key in the coverage data.
+                coverage_data_key = list(coverage_data.keys())[0]
+
+                target_coverage = coverage_data[coverage_data_key]
+
                 print(f"Parsed coverage for {func_name}.py: {target_coverage}%")
+
                 if target_coverage < 100:
                     print(
                         f"Warning: Code coverage is not 100%. Actual coverage: {target_coverage}%"
@@ -245,7 +234,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
                         break
 
         if not coverage_data:
-            display(clean_output)
+            display(pprint(output))  # type: ignore
             raise CoverageParsingError("Coverage information not found in the output.")
 
         if target_file not in coverage_data:
@@ -282,32 +271,3 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
             "test_summary": test_summary,
             "full_output": coverage_output,
         }
-
-    def verify_goal(self, result: Any, goal: str, df: pd.DataFrame) -> bool:
-        """
-        Verify if the generated code meets the specified goal.
-
-        :param result: The result of executing the generated code
-        :param goal: The specified goal for the function
-        :param df: The input dataframe
-        :return: True if the goal is met, False otherwise
-        """
-        if goal == "replace every instance of 'Australia'":
-            if isinstance(result, pd.DataFrame):
-                return not result.applymap(lambda x: "Australia" in str(x)).any().any()
-
-        # Add more goal verifications as needed
-
-        return False  # Default to False if goal is not recognized
-
-
-# Add this function to your test file to load the dataframe
-# @pytest.fixture(scope="module")
-# def input_df(request: pytest.FixtureRequest) -> Optional[pd.DataFrame]:
-#    if df_path := request.config.getoption("--df_path"):
-#        return pd.read_pickle(df_path)
-#    return None
-
-# Add this to your test file to add the command-line option#
-# def pytest_addoption(parser) -> None:
-#    parser.addoption("--df_path", action="store", default=None, help="Path to the input DataFrame pickle file")

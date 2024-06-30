@@ -1,30 +1,17 @@
 """Stream the response from the backend model."""
 
 import json
-import os
 from typing import Any, AsyncIterator, Dict
 
 import httpx
-from dotenv import load_dotenv
+
+from code_autoeval.clients.llm_model.utils.base_llm_class import BaseLLMClass
 
 
-class StreamResponse:
+class StreamResponse(BaseLLMClass):
     """Stream response from the backend model."""
 
-    def __init__(self) -> None:
-        """Initialize the LLM Backend Client Model."""
-        load_dotenv()
-        self.model_name = self._instantiate_model_name()
-        self._model_url = self._instantiate_model_url()
-
-    def _instantiate_model_name(self) -> str:
-        """Instantiate the model name."""
-        return os.getenv("OPENAI_MODEL_NAME", "coder-lite:latest")
-
-    def _instantiate_model_url(self) -> str:
-        """Instantiate the model URL."""
-        load_dotenv()
-        return os.getenv("OPENAI_BASE_URL", "")
+    # No need for __init__ method anymore, as ModelAttributes are initialized by default
 
     async def ask_backend_model(
         self,
@@ -44,14 +31,14 @@ class StreamResponse:
         Dict[str, str]: A dictionary containing the full response from the model.
         """
         payload = {
-            "model": self.model_name,
+            "model": self.llm_model_attributes.llm_model_name,
             "prompt": user_content,
             "system": system_prompt,
             "stream": True,
             **kwargs,
         }
 
-        url = f"{self._model_url}/api/generate"
+        url = f"{self.llm_model_attributes.llm_model_url}/api/generate"
         full_response = ""
 
         async for chunk in self.stream_response(url, payload):

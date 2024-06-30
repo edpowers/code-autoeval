@@ -1,6 +1,6 @@
 """Implementation for system prompts."""
 
-from typing import Any, Dict
+from typing import Any, Callable, Dict, List
 
 
 class SystemPrompts:
@@ -9,27 +9,46 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
+        func_name: str,
         function_signature: str,
         function_docstring: str,
         function_body: str,
+        base_classes: List[str],
+        init_params: List[str],
+        class_attributes: List[str],
+        absolute_path: str,
     ) -> str:
         """Passthrough generation of system prompt."""
         if function_body:
             return self.generate_system_prompt_with_existing_function(
-                query, goal, function_signature, function_docstring, function_body
+                query,
+                goal,
+                func_name,
+                function_signature,
+                function_docstring,
+                function_body,
+                base_classes=base_classes,
+                init_params=init_params,
+                class_attributes=class_attributes,
+                absolute_path=absolute_path,
             )
 
         return self.generate_system_prompt_no_existing_function(
-            query, goal, function_signature, function_docstring
+            query, goal, func_name, function_signature, function_docstring
         )
 
     def generate_system_prompt_with_existing_function(
         self,
         query: str,
         goal: str,
+        func_name: str,
         function_signature: str,
         function_docstring: str,
         function_body: str,
+        base_classes: List[str],
+        init_params: List[str],
+        class_attributes: List[str],
+        absolute_path: str,
     ) -> str:
         return f"""
         You are an expert Python code analyst and test writer.
@@ -38,10 +57,30 @@ class SystemPrompts:
         Follow these instructions carefully:
 
         1. Function Details:
+        Function Name: {func_name}
         Signature: {function_signature}
         Docstring: {function_docstring}
         Function Body:
         {function_body}
+
+        If there are base classes, initialization parameters, or class attributes,
+        please mock all of the dependencies so that we can properly unit test.
+        Use unittest.mock or any other pytest.patch method to mock these dependencies.
+
+        Please use the following relative path provided for all mocking:
+        {absolute_path}
+
+        Function Base Classes:
+        {base_classes}
+
+        Initialization Parameters:
+        {init_params}
+
+        Class Attributes:
+        {class_attributes}
+
+        Mocking __init__ functions should return None, like the following:
+        @patch("code_autoeval.clients.llm_model.llm_model.LLMModel.__init__", return_value=None)
 
         2. Task: {query} - with {goal}
 
@@ -102,6 +141,7 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
+        func_name: str,
         function_signature: str,
         function_docstring: str,
     ) -> str:
@@ -109,6 +149,7 @@ class SystemPrompts:
         Follow these instructions carefully:
 
         1. Function Details:
+        Function Name: {func_name}
         Signature: {function_signature}
         Docstring: {function_docstring}
 
@@ -146,8 +187,20 @@ class SystemPrompts:
             result = arg1 + arg2
             return result
 
+        class TestExampleFunc:
+            def test_normal_case(self):
+                assert example_func(3, 4) == 7
+
+            def test_edge_case(self):
+                assert example_func(-2, -3) == -5
+
+            def test_zero(self):
+                assert example_func(0, 0) == 0
+
         # Test the function
         print(example_func(3, 4))
+
+        print(TestExampleFunc().test_normal_case())
 
         # Tests
         import pytest
@@ -168,19 +221,27 @@ class SystemPrompts:
             with pytest.raises(TypeError):
                 example_func("3", 4)
 
+        def test_class_normal_case():
+            assert TestExampleFunc().test_normal_case() == None
+
         Remember to provide the main function implementation, expected output, and pytest tests as described above.
         Ensure 100% code coverage for the function being tested."""
 
     def generate_clarification_prompt(
         self,
         query: str,
-        function_name: str,
-        function_signature: str,
-        function_docstring: str,
         error_message: str,
         coverage_report: Dict[str, Any],
         previous_code: str,
         pytest_tests: str,
+        func_name: str,
+        function_signature: str,
+        function_docstring: str,
+        function_body: str,
+        base_classes: List[str],
+        init_params: List[str],
+        class_attributes: List[str],
+        absolute_path: str,
     ) -> str:
         base_prompt = f"""
         The previous response encountered issues. Please address the following problems and improve the code:
@@ -193,7 +254,7 @@ class SystemPrompts:
         if "coverage is not 100%" in error_message:
             coverage_prompt = f"""
             Current code coverage: {coverage_report['total_coverage']}%
-            Uncovered lines in {function_name}.py:
+            Uncovered lines in {func_name}.py:
             {coverage_report['uncovered_lines']}
 
             To improve coverage:
@@ -223,7 +284,7 @@ class SystemPrompts:
 
         base_prompt += f"""
         Please provide:
-        1. An updated implementation of the {function_name} function.
+        1. An updated implementation of the {func_name} function.
         2. A comprehensive set of pytest tests that cover all code paths.
         3. Expected output for a sample input.
 
@@ -237,3 +298,20 @@ class SystemPrompts:
         """
 
         return base_prompt
+
+    def generate_fake_data_prompt(
+        self, func: Callable, num_rows: int = 100, num_columns: int = 5
+    ) -> str:
+        """Generate the system prompt for generating fake data."""
+        function_signature = f"def {func.__name__}{func.__annotations__}"
+        function_docstring = f'"""{func.__doc__}"""' if func.__doc__ else ""
+
+        return f"""
+        Generate a Python script to create fake data for the following function:
+        {function_signature}
+        {function_docstring}
+        Use only the Faker library to generate appropriate fake data.
+        Create a pandas DataFrame named 'fake_data' containing the generated data.
+        Ensure the generated data is diverse and suitable for testing the function.
+        Do not use PandasProvider or any other external libraries besides Faker, random, and pandas.
+        """

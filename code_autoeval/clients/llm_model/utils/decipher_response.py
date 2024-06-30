@@ -7,7 +7,6 @@ import re
 class DeciperResponse:
     """Class for deciphering/understanding model response."""
 
-
     def figure_out_model_response(self, c: dict) -> str:
         response = c["response"]
 
@@ -30,7 +29,9 @@ class DeciperResponse:
             content = response  # If no JSON found, use the full response
 
         # Clean up the content
-        content = re.sub(r"<｜.*?｜>", "", content)  # Remove any remaining special tokens
+        content = re.sub(
+            r"<｜.*?｜>", "", content
+        )  # Remove any remaining special tokens
         content = content.strip()  # Remove leading/trailing whitespace
 
         return content

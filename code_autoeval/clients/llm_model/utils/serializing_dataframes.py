@@ -9,7 +9,6 @@ import pandas as pd
 class SerializeDataframes:
     """Class for serializing dataframes."""
 
-
     def serialize_dataframe(self, df: Union[pd.DataFrame, dict]) -> dict:
         if isinstance(df, pd.DataFrame):
             if len(df) <= 15:
@@ -23,7 +22,7 @@ class SerializeDataframes:
             return {
                 "type": "DataFrame",
                 "data": json.loads(sample.to_json(orient="split")),
-                "dtypes": str(df.dtypes.to_dict())
+                "dtypes": str(df.dtypes.to_dict()),
             }
 
         return df

@@ -5,7 +5,6 @@ import random
 import re
 from typing import Any, Callable, Optional
 
-import black
 import pandas as pd
 from faker import Faker
 
@@ -13,9 +12,10 @@ from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution impo
     PreProcessCodeBeforeExecution,
 )
 from code_autoeval.clients.llm_model.utils.stream_response import StreamResponse
+from code_autoeval.clients.llm_model.utils.system_prompts import SystemPrompts
 
 
-class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
+class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution, SystemPrompts):
     """Generate the fake data."""
 
     # @persistent_cache
@@ -46,18 +46,9 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
         if df is not None or skip_generate_fake_data:
             return df
 
-        function_signature = f"def {func.__name__}{func.__annotations__}"
-        function_docstring = f'"""{func.__doc__}"""' if func.__doc__ else ""
+        self.debug = debug
 
-        fake_data_prompt = f"""
-        Generate a Python script to create fake data for the following function:
-        {function_signature}
-        {function_docstring}
-        Use only the Faker library to generate appropriate fake data.
-        Create a pandas DataFrame named 'fake_data' containing the generated data.
-        Ensure the generated data is diverse and suitable for testing the function.
-        Do not use PandasProvider or any other external libraries besides Faker, random, and pandas.
-        """
+        fake_data_prompt = self.generate_fake_data_prompt(func)
 
         fake_data_response = await self.ask_backend_model(
             fake_data_prompt, system_prompt=""
@@ -65,23 +56,15 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
 
         content = self.figure_out_model_response_for_faker(fake_data_response)
 
-        if debug:
-            print("Raw content from model:\n", content)
-
         # Extract the code part
         parts = re.split(
             r"[# ]{0,2}Expected Output:|### Expected Output:", content, maxsplit=1
         )
+
         code = parts[0].strip()
-
-        code = self.clean_code(code)
-        code = self.preprocess_code(code)
-
-        # Format the code using Black
-        try:
-            code = black.format_str(code, mode=black.FileMode())
-        except black.InvalidInput as e:
-            raise Exception(f"Error formatting code: {str(e)}\nCode:\n{code}") from e
+        code = self.run_preprocess_pipeline(code, code_type="")
+        # Log the code
+        self._log_code(code)
 
         try:
             # Set up the execution environment
@@ -96,10 +79,7 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution):
             if not isinstance(fake_data, pd.DataFrame):
                 raise ValueError("The generated fake data is not a pandas DataFrame")
 
-            if debug:
-                print("\nGenerated fake DataFrame:")
-                print(fake_data)
-                print()
+            self._log_fake_gen_data(fake_data)
 
             return fake_data
 

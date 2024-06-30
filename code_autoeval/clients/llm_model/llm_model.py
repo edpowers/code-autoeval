@@ -1,14 +1,11 @@
 """LLM Backend Client Model."""
 
-import inspect
 import re
 import traceback
+from pprint import pprint
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import pandas as pd
-from IPython.display import display
-
-display.__name__
 
 # from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
 from code_autoeval.clients.llm_model.utils.decipher_response import DeciperResponse
@@ -16,26 +13,25 @@ from code_autoeval.clients.llm_model.utils.execute_generated_code import (
     ExecuteGeneratedCode,
 )
 from code_autoeval.clients.llm_model.utils.execute_unit_tests import ExecuteUnitTests
+from code_autoeval.clients.llm_model.utils.extract_function_attributes import (
+    extract_function_attributes,
+)
 from code_autoeval.clients.llm_model.utils.generate_fake_data import GenerateFakeData
+from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
 from code_autoeval.clients.llm_model.utils.serializing_dataframes import (
     SerializeDataframes,
 )
-from code_autoeval.clients.llm_model.utils.system_prompts import SystemPrompts
 from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
 
 
 class LLMModel(
     GenerateFakeData,
     DeciperResponse,
-    SystemPrompts,
     ExecuteGeneratedCode,
     SerializeDataframes,
     ExecuteUnitTests,
 ):
     """LLM Backend Client Model."""
-
-    func_name: str = ""
-    model_name: str
 
     def __init__(self, **kwargs: BackendModelKwargs) -> None:
         """Initialize the LLM Backend Client Model."""
@@ -51,6 +47,7 @@ class LLMModel(
         debug: bool = False,
         max_retries: int = 3,
         skip_generate_fake_data: bool = False,
+        class_model: ClassDataModel = None,
     ) -> Tuple[str, Any, str, Dict[str, Any], str]:
         """
         Generates Python code based on the query, provided function, and optional dataframe.
@@ -64,93 +61,88 @@ class LLMModel(
         :param max_retries: Maximum number of retries for code generation
         :param skip_generate_fake_data: Whether to skip generating fake data
         """
-        function_signature = f"def {func.__name__}{func.__annotations__}"
-        function_docstring = f'"""{func.__doc__}"""' if func.__doc__ else ""
-        function_body = (inspect.getsource(func).split(":", 1)[1].strip()).strip()
-        if len(function_body) < 5:
-            function_body = ""
-
-        self.func_name = func.__name__
-        self.base_dir = "generated_code"
+        extracted_function_attributes = extract_function_attributes(func, class_model)
+        # Extract function attributes
+        self.init_kwargs.__dict__.update(**extracted_function_attributes.__dict__)
+        self.init_kwargs.debug = debug
+        self.init_kwargs.verbose = verbose
         error_message = ""
         code = ""
         expected_output = ""
         pytest_tests = ""
         goal = goal or ""
         system_prompt = self.generate_system_prompt(
-            query,
-            goal,
-            function_signature,
-            function_docstring,
-            function_body,
+            query, goal, **extracted_function_attributes.__dict__
         )
 
         # Generate fake data if needed - if valid df then this will get skipped.
         df = self.generate_fake_data(
-            func, df, debug, skip_generate_fake_data=skip_generate_fake_data
+            func,
+            df,
+            debug=self.init_kwargs.debug,
+            skip_generate_fake_data=skip_generate_fake_data,
         )
 
         for attempt in range(max_retries):
-            if attempt > 0:
-
+            if attempt == 0:
+                c = await self.ask_backend_model(query, system_prompt=system_prompt)
+            else:
                 coverage_report = (
-                    self.get_coverage_report(function_name=self.func_name)
+                    self.get_coverage_report(function_name=self.init_kwargs.func_name)
                     if "coverage is not 100%" in error_message
                     else None
                 )
 
                 clarification_prompt = self.generate_clarification_prompt(
                     query,
-                    self.func_name,
-                    function_signature,
-                    function_docstring,
                     error_message,
                     coverage_report=coverage_report,
                     previous_code=code,
                     pytest_tests=pytest_tests,
+                    **extract_function_attributes(
+                        func, class_model=class_model
+                    ).__dict__,
                 )
                 c = await self.ask_backend_model(
                     clarification_prompt,
                     system_prompt=system_prompt,
                 )
-            else:
-                c = await self.ask_backend_model(query, system_prompt=system_prompt)
 
             content = self.figure_out_model_response(c)
 
-            if self.func_name not in content:
-                raise ValueError(
-                    f"Function name {self.func_name} not found in the generated code"
-                )
-
-            if debug:
-                print("Raw content from model:\n", content)  # Debug print
+            self.validate_func_name_in_code(content, self.init_kwargs.func_name)
+            self._log_code(content, intro_message="Raw content from model")
 
             code, expected_output, pytest_tests = self.split_content_from_model(content)
 
             try:
-                # Execute the generated code
-                result, context = self.execute_generated_code(
-                    code, func=func, df=df, debug=debug
-                )
+                if class_model:
+                    result, context = {}, {}
+                else:
+                    # Execute the generated code
+                    result, context = self.execute_generated_code(
+                        code,
+                        func=func,
+                        df=df,
+                        debug=debug,
+                    )
 
-                # Serialize the result if it's a DataFrame
-                serialized_result = self.serialize_dataframe(result)
-
-                if verbose:
-                    print(f"Execution result: {serialized_result}")
+                self._log_code(code, intro_message="Execution result")
 
                 # Write code and tests to files
-                self.write_code_and_tests(code, pytest_tests, func)
+                self.write_code_and_tests(code, pytest_tests, func, class_model)
 
                 if tests_passed := self.run_tests(
-                    self.func_name,
+                    self.init_kwargs.func_name,
+                    self.file_path,
+                    self.test_file_path,
                     df,
                     debug=debug,
+                    class_model=class_model,
                 ):
                     return (
                         code,
-                        serialized_result,
+                        self.serialize_dataframe(result),
                         expected_output,
                         context,
                         pytest_tests,
@@ -164,15 +156,12 @@ class LLMModel(
                     print(
                         f"Attempt {attempt + 1} - Error executing generated code or insufficient coverage: {error_message}"
                     )
-                    display(traceback.format_exc())
+                    pprint(traceback.format_exc())
                 # Pass the error message to the next iteration
                 continue
 
-        # If we've exhausted all retries
-        if verbose:
-            print(
-                f"Failed to generate correct code with 100% coverage after {max_retries} attempts."
-            )
+        self._log_max_retries(max_retries)
+
         return code, None, expected_output, {}, pytest_tests
 
     def split_content_from_model(self, content: str) -> Tuple[str, str, str]:
@@ -185,8 +174,16 @@ class LLMModel(
             code = content
             expected_output = "Expected output not provided"
 
+        # Search for # Tests or 'pytest tests' in code:
+        if not re.search("# Test|pytest tests|test", code):
+            pprint(content)
+            raise ValueError(
+                "No '# Tests' provided in the model response. Unable to parse regex."
+            )
+
         # Now split the code part to separate pytest tests
-        code_parts = re.split(r"[# ]{0,2}Tests", code, maxsplit=1)
+        # code_parts = re.split(r"[# ]{0,5}Test[s]{0,1}|pytest tests", code, maxsplit=1)
+        code_parts = re.split(r"(?m)^# Test[s]?(?:\s|$)|pytest tests", code, maxsplit=1)
 
         if len(code_parts) > 1:
             main_code = code_parts[0]
@@ -203,14 +200,13 @@ class LLMModel(
             pytest_tests = ""
 
         # Clean up the expected output
-        expected_output = re.sub(r"^```|```$|,", "", expected_output.strip()).strip()
+        expected_output = self.remove_non_code_patterns(expected_output, code_type="")
 
-        if self.func_name not in main_code:
-            raise ValueError(
-                f"Function name {self.func_name} not found in the generated code"
-            )
+        self.validate_func_name_in_code(main_code, self.init_kwargs.func_name)
 
-        if "def test_" not in pytest_tests:
-            raise ValueError(f"pytest_tests must be in {pytest_tests}")
+        if "def test_" in main_code and not pytest_tests:
+            pytest_tests = main_code
+
+        self.validate_test_in_pytest_code(pytest_tests)
 
         return main_code.strip(), expected_output.strip(), pytest_tests.strip()
