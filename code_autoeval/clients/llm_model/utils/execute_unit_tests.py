@@ -1,5 +1,6 @@
 """Execute the unit tests for the provided function."""
 
+import contextlib
 import os
 import re
 import subprocess
@@ -13,6 +14,9 @@ from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
 
 from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
+from code_autoeval.clients.llm_model.utils.parse_unit_test_coverage import (
+    ParseUnitTestCoverage,
+)
 from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
@@ -26,7 +30,7 @@ class NoTestsInPytestFile(Exception):
     pass
 
 
-class ExecuteUnitTests(PreProcessCodeBeforeExecution):
+class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
 
     coverage_result: subprocess.CompletedProcess = None
 
@@ -53,6 +57,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
             code_type="pytest",
             func_name=self.init_kwargs.func_name,
             class_model=class_model,
+            is_pytest_format=True,
         )
 
         # If there's no function named test within the pytests_tests,
@@ -84,9 +89,11 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
         # Create the relative path from the project root
         relative_path = module_path.relative_to(self.common.project_root)
 
-        func_name = (
-            class_model.class_name if class_model else self.init_kwargs.func_name
-        )
+        # func_name = (
+        #    class_model.class_name if class_model else self.init_kwargs.func_name
+        # )
+
+        func_name = self.init_kwargs.func_name
 
         # Get the directory containing generated_code
         self.absolute_path_from_root = (
@@ -103,6 +110,11 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
             / f"test_{func_name}.py"
         )
 
+        if "." in str(self.test_file_path):
+            self.test_file_path = self.test_file_path.with_stem(
+                self.test_file_path.stem.replace(".", "_")
+            ).with_suffix(".py")
+
         SystemUtils.make_file_dir(self.file_path)
         SystemUtils.make_file_dir(self.test_file_path)
 
@@ -116,7 +128,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
         df: Optional[pd.DataFrame] = None,
         debug: bool = False,
         class_model: Optional[ClassDataModel] = None,
-    ) -> bool:
+    ) -> Dict[str, Any]:
         if not self.test_file_path:
             raise ValueError("No test file path set. Please write tests first.")
 
@@ -125,7 +137,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
         # Remove the project root from the path
         format_test_path_repl = (
             str(format_test_path).replace(f"{self.common.project_root}.", "").strip(".")
-        )
+        ).replace(".__init__", "___init__")
 
         self._log_test_coverage_path(format_test_path_repl)
 
@@ -141,13 +153,12 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
 
         # File path would be the generated path
         code_path_to_cover = (
-            class_model.absolute_path.rsplit(".")[0]
+            class_model.absolute_path.rsplit(".", maxsplit=1)[0]
             if class_model
             else file_path.parent
         )
 
         self._log_code(code_path_to_cover, intro_message="code_path_to_cover: ")
-
         try:
             # Prepare the pytest command
             pytest_command = [
@@ -168,6 +179,10 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
             # if df_path:
             #     pytest_command.append(f"--df_path={df_path}")
 
+            with contextlib.suppress(subprocess.CalledProcessError):
+                # Run pytest first time to display output
+                subprocess.run(pytest_command[:-1], check=True)
+
             # Run pytest with coverage
             self.coverage_result = subprocess.run(
                 pytest_command,
@@ -176,6 +191,20 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
             )
 
             self._log_coverage_results(self.coverage_result)
+
+            parsed_unit_test_coverage, recalculated_coverage = (
+                ParseUnitTestCoverage.run_parse_unit_test_cov(
+                    self.coverage_result.stdout,
+                    project_root=self.common.project_root,
+                    relative_path=code_path_to_cover,
+                    func_name=self.init_kwargs.func_name.split(".")[-1],
+                )
+            )
+
+            self._log_code(
+                f"{parsed_unit_test_coverage}",
+                intro_message="parsed_unit_test_coverage: ",
+            )
 
             try:
                 coverage_data = self.parse_coverage(
@@ -188,21 +217,23 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution):
                 target_coverage = coverage_data[coverage_data_key]
 
                 print(f"Parsed coverage for {func_name}.py: {target_coverage}%")
+                print(f"Recalculated coverage: {recalculated_coverage:.2f}%")
 
-                if target_coverage < 100:
+                if recalculated_coverage < 100:
                     print(
                         f"Warning: Code coverage is not 100%. Actual coverage: {target_coverage}%"
                     )
-                    return False
-                return (
-                    self.coverage_result.returncode == 0
-                )  # Return True if tests passed
+                    return parsed_unit_test_coverage
+                else:
+                    return {}
+
             except CoverageParsingError as e:
                 print(f"Error parsing coverage: {e}")
                 # If "no tests ran" then throw an error, else return False
                 if "no tests ran" in self.coverage_result.stdout:
                     raise e
-                return False
+
+                raise Exception("Tests failed or coverage is not 100%")
 
         finally:
             # Clean up the temporary dataframe file if it was created

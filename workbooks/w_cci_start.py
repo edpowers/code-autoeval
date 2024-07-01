@@ -231,6 +231,18 @@ print(ClassDataModel)
 async def generate_code_for_classes(
     class_info: Dict[str, List[Tuple[str, str, List[str]]]], llm_model_client: LLMModel
 ) -> None:
+
+    project_root = FindProjectRoot.find_project_root(
+        start_path=Path(SystemUtils.get_class_file_path(main2))
+    )
+    # Clean the generated_code directory
+    generated_code_dir = project_root.joinpath("generated_code")
+
+    if generated_code_dir.exists():
+        all_python_files = generated_code_dir.rglob("*.py")
+        for f in all_python_files:
+            f.unlink()
+
     for file_path, classes in class_info.items():
         for (
             class_name,

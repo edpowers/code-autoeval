@@ -98,6 +98,20 @@ class SystemPrompts:
         - Ensure 100% code coverage for the function being tested.
         - If any of the function args are pandas.DataFrame or pandas.Series, include tests that verify the index and data integrity.
 
+        When writing pytest tests, please adhere to the following guidelines:
+
+        1. Only use variables that are explicitly defined within each test function.
+        2. Avoid relying on global variables or undefined mocks.
+        3. If you need to mock a method or function, define the mock within the test function using pytest.mock.patch as a decorator or context manager.
+        4. Ensure that each test function is self-contained and does not depend on the state from other tests.
+        5. Use descriptive names for test functions that clearly indicate what is being tested.
+        6. Follow the Arrange-Act-Assert (AAA) pattern in your tests:
+        - Arrange: Set up the test data and conditions.
+        - Act: Perform the action being tested.
+        - Assert: Check that the results are as expected.
+        7. Use assert statements to verify the expected behavior.
+        8. When testing for exceptions, use pytest.raises() as a context manager.
+get
         5. Output Format:
         - Provide a brief analysis of the function (2-3 sentences).
         - Then, provide the pytest tests.
@@ -119,7 +133,9 @@ class SystemPrompts:
         # Test the function
         print(example_func_provided(3, 4))
 
-        # Tests
+        ##################################################
+        # TESTS
+        ##################################################
 
         def test_normal_case():
             # Test normal use case
@@ -173,6 +189,20 @@ class SystemPrompts:
         - After providing the main function and expected output, create pytest tests for the function.
         - Create at least 3 test functions covering different scenarios, including edge cases and potential error conditions.
         - Ensure 100% code coverage for the function being tested.
+
+        When writing pytest tests, please adhere to the following guidelines:
+
+        1. Only use variables that are explicitly defined within each test function.
+        2. Avoid relying on global variables or undefined mocks.
+        3. If you need to mock a method or function, define the mock within the test function using pytest.mock.patch as a decorator or context manager.
+        4. Ensure that each test function is self-contained and does not depend on the state from other tests.
+        5. Use descriptive names for test functions that clearly indicate what is being tested.
+        6. Follow the Arrange-Act-Assert (AAA) pattern in your tests:
+        - Arrange: Set up the test data and conditions.
+        - Act: Perform the action being tested.
+        - Assert: Check that the results are as expected.
+        7. Use assert statements to verify the expected behavior.
+        8. When testing for exceptions, use pytest.raises() as a context manager.
 
         Example of expected response format:
 
@@ -242,6 +272,7 @@ class SystemPrompts:
         init_params: List[str],
         class_attributes: List[str],
         absolute_path: str,
+        unit_test_coverage_missing: Dict[str, Any],
     ) -> str:
         base_prompt = f"""
         The previous response encountered issues. Please address the following problems and improve the code:
@@ -265,6 +296,16 @@ class SystemPrompts:
 
             Previous pytest tests:
             {pytest_tests}
+
+            The following lines from the original code are not covered by tests.
+            Please write additional tests that target these lines.
+            Write tests that cover all possible code paths to achieve 100% coverage.
+
+            """
+            for range_tuple, code_snippet in unit_test_coverage_missing.items():
+                coverage_prompt += f"""
+            Lines {range_tuple[0]}-{range_tuple[1]}:
+            {code_snippet}
             """
             base_prompt += coverage_prompt
         else:

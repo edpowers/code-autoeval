@@ -24,6 +24,10 @@ from code_autoeval.clients.llm_model.utils.serializing_dataframes import (
 from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
 
 
+class MissingCoverageException(BaseException):
+    pass
+
+
 class LLMModel(
     GenerateFakeData,
     DeciperResponse,
@@ -70,6 +74,7 @@ class LLMModel(
         code = ""
         expected_output = ""
         pytest_tests = ""
+        unit_test_coverage_missing: Dict[str, Any] = {}
         goal = goal or ""
         system_prompt = self.generate_system_prompt(
             query, goal, **extracted_function_attributes.__dict__
@@ -99,6 +104,7 @@ class LLMModel(
                     coverage_report=coverage_report,
                     previous_code=code,
                     pytest_tests=pytest_tests,
+                    unit_test_coverage_missing=unit_test_coverage_missing,
                     **extract_function_attributes(
                         func, class_model=class_model
                     ).__dict__,
@@ -115,6 +121,10 @@ class LLMModel(
 
             code, expected_output, pytest_tests = self.split_content_from_model(content)
 
+            if not code == pytest_tests:
+                self._log_code(code, intro_message="Split result - code")
+            self._log_code(pytest_tests, intro_message="Split result - pytest_tests")
+
             try:
                 if class_model:
                     result, context = {}, {}
@@ -127,19 +137,19 @@ class LLMModel(
                         debug=debug,
                     )
 
-                self._log_code(code, intro_message="Execution result")
-
                 # Write code and tests to files
                 self.write_code_and_tests(code, pytest_tests, func, class_model)
 
-                if tests_passed := self.run_tests(
+                unit_test_coverage_missing = self.run_tests(
                     self.init_kwargs.func_name,
                     self.file_path,
                     self.test_file_path,
                     df,
                     debug=debug,
                     class_model=class_model,
-                ):
+                )
+
+                if not unit_test_coverage_missing:
                     return (
                         code,
                         self.serialize_dataframe(result),
@@ -148,13 +158,23 @@ class LLMModel(
                         pytest_tests,
                     )
                 else:
-                    raise Exception("Tests failed or coverage is not 100%")
+                    raise MissingCoverageException(
+                        "Tests failed or coverage is not 100%"
+                    )
 
+            except MissingCoverageException as e:
+                error_message = str(e)
+                self._log_code(
+                    f"Attempt {attempt + 1} - {error_message}",
+                    "Insufficient coverage: ",
+                )
+                # Pass the error message to the next iteration
+                continue
             except Exception as e:
                 error_message = f"Error: {str(e)}"
                 if debug:
                     print(
-                        f"Attempt {attempt + 1} - Error executing generated code or insufficient coverage: {error_message}"
+                        f"Attempt {attempt + 1} - Error executing generated code {error_message}"
                     )
                     pprint(traceback.format_exc())
                 # Pass the error message to the next iteration
@@ -164,7 +184,10 @@ class LLMModel(
 
         return code, None, expected_output, {}, pytest_tests
 
-    def split_content_from_model(self, content: str) -> Tuple[str, str, str]:
+    def split_content_from_model(
+        self,
+        content: str,
+    ) -> Tuple[str, str, str]:
         # Split the content into code and expected output
         parts = re.split(r"[# ]{0,2}Expected Output:", content, maxsplit=1)
 
@@ -181,9 +204,29 @@ class LLMModel(
                 "No '# Tests' provided in the model response. Unable to parse regex."
             )
 
+        # If ```python in the file, then split on that point:
+        if "```python" in code:
+            code_parts = re.split(r"```python", code, maxsplit=1)
+            code = code_parts[-1]
+
+        # Look for any class definitions. If not found, then just return the code and pytest_tests as the same.
+        class_def_exists = re.search(r"class [A-Z]{5,}", code)
+        if not class_def_exists:
+            return code.strip(), expected_output.strip(), code.strip()
+
+        if "### Explanation:" in code:
+            code_parts = re.split(r"### Explanation:", code, maxsplit=1)
+            code = code_parts[0]
+
+        return code.strip(), expected_output.strip(), code.strip()
+
         # Now split the code part to separate pytest tests
         # code_parts = re.split(r"[# ]{0,5}Test[s]{0,1}|pytest tests", code, maxsplit=1)
-        code_parts = re.split(r"(?m)^# Test[s]?(?:\s|$)|pytest tests", code, maxsplit=1)
+        code_parts = re.split(
+            r"(?m)^# Test[s]?(?:\s|$)|[Pp]ytest [Tt]ests|(?m)^# Updated Pytest Tests:",
+            code,
+            maxsplit=1,
+        )
 
         if len(code_parts) > 1:
             main_code = code_parts[0]

@@ -59,9 +59,9 @@ class ExecuteGeneratedCode(
             original_code, code_type="function", func_name=self.init_kwargs.func_name
         )
         # Format the code using Black
-        formatted_code = self.format_code_with_black(
-            code, code_type="function", func_name=self.init_kwargs.func_name
-        )
+        # formatted_code = self.format_code_with_black(
+        #    code, code_type="function", func_name=self.init_kwargs.func_name
+        # )
 
         self._log_code(formatted_code, "Formatted code:")
 

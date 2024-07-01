@@ -16,6 +16,13 @@ llm_model_client = LLMModel()
 
 # %%
 
+test_str = "code_autoeval.clients.llm_model.llm_model.LLMModel"
+
+test_str.rsplit(".", maxsplit=1)[0]
+
+# %%
+# %%
+
 
 class AbstractDataFrameClass(ABC):
 
@@ -182,7 +189,6 @@ subprocess.run(
 # %%
 
 
-
 subprocess.run(
     args=[
         "pytest",
@@ -194,5 +200,22 @@ subprocess.run(
     ],
 )
 
+
+# %%
+
+
+example = ""
+
+from pprint import pprint
+
+pprint(example)
+
+# %%
+# %%
+
+
+pprint(
+    "import re\nimport traceback\nfrom pprint import pprint\nfrom typing import Any, Callable, Dict, Optional, Tuple\nimport pandas as pd\nfrom code_autoeval.clients.llm_model.utils.decipher_response import DeciperResponse\nfrom code_autoeval.clients.llm_model.utils.execute_generated_code import (\nfrom code_autoeval.clients.llm_model.utils.execute_unit_tests import ExecuteUnitTests\nfrom code_autoeval.clients.llm_model.utils.extract_function_attributes import (\nfrom code_autoeval.clients.llm_model.utils.generate_fake_data import GenerateFakeData\nfrom code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel\nfrom code_autoeval.clients.llm_model.utils.serializing_dataframes import (\nfrom code_autoeval.model.backend_model_kwargs import BackendModelKwargs"
+)
 
 # %%

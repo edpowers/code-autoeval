@@ -58,15 +58,15 @@ class RunPyflakesIsort(LoggingStatements):
         #    )
 
         # Enforce max line length
-        lines = code.splitlines()
-        processed_lines = [line for line in lines if len(line) <= max_line_length]
+        # lines = code.splitlines()
+        # processed_lines = [line for line in lines if len(line) <= max_line_length]
 
-        if len(processed_lines) != len(lines):
-            was_modified = True
+        # if len(processed_lines) != len(lines):
+        #    was_modified = True
 
         Path("temp_file.py").unlink()  # Remove temporary file
 
-        return "\n".join(processed_lines), was_modified
+        return code, was_modified
 
     def parse_pyflakes_output(self, output: str) -> list:
         unused_imports = []

@@ -1,6 +1,7 @@
 """Validate regexes - that something isn't missing."""
 
 import functools
+from pprint import pprint
 from typing import Any, Callable
 
 
@@ -16,7 +17,13 @@ class ValidateRegexes:
         if ".__init__" in func_name:
             func_name = func_name.split(".__init__")[0]
 
+        # Accomodate for the fact that the function name may be in the form of "class_name.func_name"
+        # and that we want to see if the function name is in the code
+        if "." in func_name:
+            func_name = func_name.split(".")[-1]
+
         if func_name not in code:
+            pprint(code)
             raise ValueError(
                 f"Function name '{func_name}' not found in the formatted code."
             )
