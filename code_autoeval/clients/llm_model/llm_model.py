@@ -1,24 +1,29 @@
 """LLM Backend Client Model."""
 
 import re
-import traceback
 from pprint import pprint
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import pandas as pd
 
-# from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
-from code_autoeval.clients.llm_model.utils.decipher_response import DeciperResponse
 from code_autoeval.clients.llm_model.utils.execute_generated_code import (
     ExecuteGeneratedCode,
 )
 from code_autoeval.clients.llm_model.utils.execute_unit_tests import ExecuteUnitTests
-from code_autoeval.clients.llm_model.utils.extract_function_attributes import (
-    extract_function_attributes,
+from code_autoeval.clients.llm_model.utils.extraction.extract_context_from_exception import (
+    ExtractContextFromException,
 )
 from code_autoeval.clients.llm_model.utils.generate_fake_data import GenerateFakeData
 from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
-from code_autoeval.clients.llm_model.utils.serializing_dataframes import (
+from code_autoeval.clients.llm_model.utils.model.function_attributes import (
+    FunctionAttributesFactory,
+)
+
+# from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
+from code_autoeval.clients.llm_model.utils.model_response.decipher_response import (
+    DeciperResponse,
+)
+from code_autoeval.clients.llm_model.utils.model_response.serializing_dataframes import (
     SerializeDataframes,
 )
 from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
@@ -52,7 +57,7 @@ class LLMModel(
         max_retries: int = 3,
         skip_generate_fake_data: bool = False,
         class_model: ClassDataModel = None,
-    ) -> Tuple[str, Any, str, Dict[str, Any], str]:
+    ) -> Tuple[str, Any, Dict[str, Any], str]:
         """
         Generates Python code based on the query, provided function, and optional dataframe.
 
@@ -65,19 +70,22 @@ class LLMModel(
         :param max_retries: Maximum number of retries for code generation
         :param skip_generate_fake_data: Whether to skip generating fake data
         """
-        extracted_function_attributes = extract_function_attributes(func, class_model)
+        function_attributes = FunctionAttributesFactory.create(
+            func, self.common.generated_base_dir, class_model
+        )
         # Extract function attributes
-        self.init_kwargs.__dict__.update(**extracted_function_attributes.__dict__)
+        self.init_kwargs.__dict__.update(**function_attributes.__dict__)
         self.init_kwargs.debug = debug
         self.init_kwargs.verbose = verbose
         error_message = ""
+        error_formatter = ExtractContextFromException()
         code = ""
         expected_output = ""
         pytest_tests = ""
         unit_test_coverage_missing: Dict[str, Any] = {}
         goal = goal or ""
         system_prompt = self.generate_system_prompt(
-            query, goal, **extracted_function_attributes.__dict__
+            query, goal, function_attributes, class_model=class_model
         )
 
         # Generate fake data if needed - if valid df then this will get skipped.
@@ -105,9 +113,7 @@ class LLMModel(
                     previous_code=code,
                     pytest_tests=pytest_tests,
                     unit_test_coverage_missing=unit_test_coverage_missing,
-                    **extract_function_attributes(
-                        func, class_model=class_model
-                    ).__dict__,
+                    function_attributes=function_attributes,
                 )
                 c = await self.ask_backend_model(
                     clarification_prompt,
@@ -119,9 +125,9 @@ class LLMModel(
             self.validate_func_name_in_code(content, self.init_kwargs.func_name)
             self._log_code(content, intro_message="Raw content from model")
 
-            code, expected_output, pytest_tests = self.split_content_from_model(content)
+            code, pytest_tests = self.split_content_from_model(content)
 
-            if not code == pytest_tests:
+            if code != pytest_tests:
                 self._log_code(code, intro_message="Split result - code")
             self._log_code(pytest_tests, intro_message="Split result - pytest_tests")
 
@@ -153,7 +159,6 @@ class LLMModel(
                     return (
                         code,
                         self.serialize_dataframe(result),
-                        expected_output,
                         context,
                         pytest_tests,
                     )
@@ -171,54 +176,50 @@ class LLMModel(
                 # Pass the error message to the next iteration
                 continue
             except Exception as e:
-                error_message = f"Error: {str(e)}"
+                formatted_error = error_formatter.format_error(e)
+                error_message = error_formatter.create_llm_error_prompt(formatted_error)
+
+                # Now let's add in the context for what caused this error - including
+                # the line numbers and the code that was generated.
                 if debug:
                     print(
                         f"Attempt {attempt + 1} - Error executing generated code {error_message}"
                     )
-                    pprint(traceback.format_exc())
+                    pprint(formatted_error)
                 # Pass the error message to the next iteration
                 continue
 
         self._log_max_retries(max_retries)
 
-        return code, None, expected_output, {}, pytest_tests
+        return code, None, {}, pytest_tests
 
     def split_content_from_model(
         self,
         content: str,
-    ) -> Tuple[str, str, str]:
-        # Split the content into code and expected output
-        parts = re.split(r"[# ]{0,2}Expected Output:", content, maxsplit=1)
-
-        if len(parts) == 2:
-            code, expected_output = parts
-        else:
-            code = content
-            expected_output = "Expected output not provided"
-
+    ) -> Tuple[str, str]:
         # Search for # Tests or 'pytest tests' in code:
-        if not re.search("# Test|pytest tests|test", code):
+        if not re.search("# Test|pytest tests|test", content):
             pprint(content)
             raise ValueError(
                 "No '# Tests' provided in the model response. Unable to parse regex."
             )
 
-        # If ```python in the file, then split on that point:
-        if "```python" in code:
-            code_parts = re.split(r"```python", code, maxsplit=1)
-            code = code_parts[-1]
+        if code_blocks := re.findall(r"```(?:python)?(.*?)```", content, re.DOTALL):
+            # Combine all code blocks, each separated by a newline
+            code = "\n\n".join(block.strip() for block in code_blocks)
+        else:
+            code = content
 
         # Look for any class definitions. If not found, then just return the code and pytest_tests as the same.
         class_def_exists = re.search(r"class [A-Z]{5,}", code)
         if not class_def_exists:
-            return code.strip(), expected_output.strip(), code.strip()
+            return code.strip(), code.strip()
 
         if "### Explanation:" in code:
             code_parts = re.split(r"### Explanation:", code, maxsplit=1)
             code = code_parts[0]
 
-        return code.strip(), expected_output.strip(), code.strip()
+        return code.strip(), code.strip()
 
         # Now split the code part to separate pytest tests
         # code_parts = re.split(r"[# ]{0,5}Test[s]{0,1}|pytest tests", code, maxsplit=1)

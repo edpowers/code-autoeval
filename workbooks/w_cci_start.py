@@ -22,15 +22,18 @@ path_cwd = Path(os.getcwd()).parent
 if str(path_cwd) not in sys.path:
     sys.path.insert(0, str(path_cwd))
 
-import importlib
 from abc import ABC, abstractmethod
-from typing import Dict, List, Tuple
+from typing import List
 
 import nest_asyncio
 from dotenv import load_dotenv
 from pydantic import create_model
 
 from code_autoeval.clients.llm_model.llm_model import LLMModel
+from code_autoeval.clients.llm_model.utils.model.class_data_model import (
+    ClassDataModel,
+    ClassDataModelFactory,
+)
 
 nest_asyncio.apply()
 
@@ -203,6 +206,8 @@ async def main2() -> None:
 # %%
 # %%
 
+llm_model_client = LLMModel()
+
 # Example usage
 module_path = Path(SystemUtils.get_class_file_path(main2))
 
@@ -213,107 +218,74 @@ directory = project_root.joinpath("code_autoeval")
 
 class_info = FindClassesInDir.find_classes_in_dir(directory)
 
+class_data_factory = ClassDataModelFactory(project_root)
 
-display(class_info)
+class_data_models = class_data_factory.create_from_class_info(class_info)
 
-llm_model_client = LLMModel()
+
+display(class_data_models)
 
 # %%
-
-from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
-
-print(ClassDataModel)
 
 
 # %%
 
 
 async def generate_code_for_classes(
-    class_info: Dict[str, List[Tuple[str, str, List[str]]]], llm_model_client: LLMModel
+    class_data_models: List[ClassDataModel], llm_model_client: LLMModel
 ) -> None:
 
     project_root = FindProjectRoot.find_project_root(
         start_path=Path(SystemUtils.get_class_file_path(main2))
     )
     # Clean the generated_code directory
-    generated_code_dir = project_root.joinpath("generated_code")
+    generated_code_dir = project_root.joinpath("generated_code/tests")
 
-    if generated_code_dir.exists():
-        all_python_files = generated_code_dir.rglob("*.py")
-        for f in all_python_files:
-            f.unlink()
+    SystemUtils.clean_directory(
+        generated_code_dir, python_file_patterns=["*.py", "*.pyc"]
+    )
 
-    for file_path, classes in class_info.items():
-        for (
-            class_name,
-            import_path,
-            function_names,
-        ) in classes:
+    for class_model in class_data_models:
 
-            if not function_names:
-                print(f"Skipping: No functions to implement for {classes=}")
-                continue
+        if not class_model.class_methods:
+            print(f"Skipping: No functions to implement for {class_model.class_name}")
+            continue
 
-            print(f"Generating code for class: {class_name} from {file_path}")
+        goal = "Refactor code to handle edge cases and improve efficiency."
 
-            # Dynamically import the class
-            module_name, class_name = import_path.rsplit(".", 1)
-            module = importlib.import_module(module_name)
-            class_to_process = getattr(module, class_name)
-            base_classes = [base.__name__ for base in class_to_process.__bases__]
-            class_attributes = [
-                name
-                for name in dir(class_to_process)
-                if not name.startswith("__")
-                and not callable(getattr(class_to_process, name))
-            ]
-            # Try to get __init__ parameters for dependency identification
-            init_signature = inspect.signature(class_to_process.__init__)
-            init_parameters = [
-                param.name
-                for param in init_signature.parameters.values()
-                if param.name != "self"
-            ]
+        for method in class_model.class_methods:
+            function_to_implement = getattr(class_model.class_object, method)
 
-            # Get the standard out from running help() against the class,
-            # which will hopefully provide the context.
-            class_model = ClassDataModel(
-                class_object=class_to_process,
-                class_name=class_name,
-                class_methods=function_names,
-                class_attributes=class_attributes,
-                init_params=init_parameters,
-                base_classes=base_classes,
-                absolute_path=import_path,
+            query = (
+                f"Implement the {method} method for the {class_model.class_name} class."
             )
 
-            goal = "Refactor code to handle edge cases and improve efficiency."
+            print(f"Generating code for class: {class_model.class_name}")
 
-            for method in function_names:
-                function_to_implement = getattr(class_to_process, method)
-
-                query = f"Implement the {method} method for the {class_name} class."
-                try:
-                    code, serialized_result, expected_output, context, pytest_tests = (
-                        await llm_model_client.code_generator(
-                            query,
-                            function_to_implement,
-                            goal=goal,
-                            verbose=True,
-                            debug=True,
-                            skip_generate_fake_data=True,
-                            class_model=class_model,
-                        )
+            query = (
+                f"Implement the {method} method for the {class_model.class_name} class."
+            )
+            try:
+                code, serialized_result, expected_output, context, pytest_tests = (
+                    await llm_model_client.code_generator(
+                        query,
+                        function_to_implement,
+                        goal=goal,
+                        verbose=True,
+                        debug=True,
+                        skip_generate_fake_data=True,
+                        class_model=class_model,
                     )
+                )
 
-                    print(f"Generated code for {class_name}.{method}:")
-                    print(code)
-                    print("\nGenerated pytest tests:")
-                    print(pytest_tests)
-                    print("\n" + "=" * 50 + "\n")
+                print(f"Generated code for {class_model.class_name}.{method}:")
+                print(code)
+                print("\nGenerated pytest tests:")
+                print(pytest_tests)
+                print("\n" + "=" * 50 + "\n")
 
-                except Exception as e:
-                    print(CustomLoggingFuncs.show_code_lines(e))
+            except Exception as e:
+                print(CustomLoggingFuncs.show_code_lines(e))
 
 
 # %%
@@ -321,10 +293,18 @@ async def generate_code_for_classes(
 
 async def main3() -> None:
     # Assuming llm_model_client is already initialized
-    await generate_code_for_classes(class_info, llm_model_client)
+    await generate_code_for_classes(class_data_models, llm_model_client)
 
 
 # Run the async main function
 value = asyncio.run(main3())
 # %%
+# %%
+
+
+# %%
+
+
+class_data_models[0]
+
 # %%

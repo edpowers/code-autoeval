@@ -28,35 +28,36 @@ class ExtractImportsFromFile:
     def extract_imports(self, file_content: str) -> Dict[str, str]:
         imports = {}
 
-        # Regular expression to match import statements
-        import_pattern = re.compile(
-            r"^(from .+? import .+?|\s*import .+?)($|\n)", re.MULTILINE | re.DOTALL
+        # Remove comments
+        file_content = re.sub(r"#.*$", "", file_content, flags=re.MULTILINE)
+
+        # Find all import statements, including multi-line ones
+        import_statements = re.findall(
+            r"^(?:from .+? import [^(]+?|\s*import .+?)(?:\n|$)|\([\s\S]+?\)",
+            file_content,
+            re.MULTILINE,
         )
 
-        # Find all matches
-        for match in import_pattern.finditer(file_content):
-            import_statement = match.group(1).strip()
-
-            # Handle multi-line imports
-            if "(" in import_statement and ")" not in import_statement:
-                end_index = file_content.index(")", match.end())
-                import_statement = file_content[match.start() : end_index + 1].strip()
-
-            # Extract the imported name(s)
-            if import_statement.startswith("from"):
-                module, names = import_statement.split(" import ")
-                names = names.strip("()")
-                for name in names.split(","):
+        for statement in import_statements:
+            statement = statement.strip()
+            if statement.startswith("from"):
+                # Handle 'from ... import ...' statements
+                module, names = statement.split(" import ", 1)
+                names = re.split(r",\s*", names.strip("()"))
+                for name in names:
                     name = name.strip()
                     if " as " in name:
                         name = name.split(" as ")[1]
-                    imports[name] = import_statement
-            else:
-                names = import_statement.split("import ")[1]
-                for name in names.split(","):
+                    imports[name] = (
+                        statement.replace("\n", " ").replace("(", "").replace(")", "")
+                    )
+            elif statement.startswith("import"):
+                # Handle 'import ...' statements
+                names = statement.split("import ")[1]
+                for name in re.split(r",\s*", names):
                     name = name.strip()
                     if " as " in name:
                         name = name.split(" as ")[1]
-                    imports[name] = import_statement
+                    imports[name] = statement
 
         return imports

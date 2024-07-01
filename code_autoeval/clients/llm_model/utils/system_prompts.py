@@ -1,6 +1,11 @@
 """Implementation for system prompts."""
 
-from typing import Any, Callable, Dict, List
+from typing import Any, Callable, Dict, Optional
+
+from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
+from code_autoeval.clients.llm_model.utils.model.function_attributes import (
+    FunctionAttributes,
+)
 
 
 class SystemPrompts:
@@ -9,46 +14,28 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
-        func_name: str,
-        function_signature: str,
-        function_docstring: str,
-        function_body: str,
-        base_classes: List[str],
-        init_params: List[str],
-        class_attributes: List[str],
-        absolute_path: str,
+        function_attributes: FunctionAttributes,
+        class_model: Optional[ClassDataModel] = None,
     ) -> str:
         """Passthrough generation of system prompt."""
-        if function_body:
+        if function_attributes.function_body and class_model:
             return self.generate_system_prompt_with_existing_function(
                 query,
                 goal,
-                func_name,
-                function_signature,
-                function_docstring,
-                function_body,
-                base_classes=base_classes,
-                init_params=init_params,
-                class_attributes=class_attributes,
-                absolute_path=absolute_path,
+                function_attributes,
+                class_model,
             )
 
         return self.generate_system_prompt_no_existing_function(
-            query, goal, func_name, function_signature, function_docstring
+            query, goal, function_attributes
         )
 
     def generate_system_prompt_with_existing_function(
         self,
         query: str,
         goal: str,
-        func_name: str,
-        function_signature: str,
-        function_docstring: str,
-        function_body: str,
-        base_classes: List[str],
-        init_params: List[str],
-        class_attributes: List[str],
-        absolute_path: str,
+        function_attributes: FunctionAttributes,
+        class_model: ClassDataModel,
     ) -> str:
         return f"""
         You are an expert Python code analyst and test writer.
@@ -57,27 +44,28 @@ class SystemPrompts:
         Follow these instructions carefully:
 
         1. Function Details:
-        Function Name: {func_name}
-        Signature: {function_signature}
-        Docstring: {function_docstring}
+        Function Name: {function_attributes.func_name}
+        Function is async coroutine: {function_attributes.is_coroutine}
+        Signature: {function_attributes.function_signature}
+        Docstring: {function_attributes.function_docstring}
         Function Body:
-        {function_body}
+        {function_attributes.function_body}
 
         If there are base classes, initialization parameters, or class attributes,
         please mock all of the dependencies so that we can properly unit test.
         Use unittest.mock or any other pytest.patch method to mock these dependencies.
 
         Please use the following relative path provided for all mocking:
-        {absolute_path}
+        {class_model.absolute_path}
 
         Function Base Classes:
-        {base_classes}
+        {class_model.base_classes}
 
         Initialization Parameters:
-        {init_params}
+        {class_model.init_params}
 
         Class Attributes:
-        {class_attributes}
+        {class_model.class_attributes}
 
         Mocking __init__ functions should return None, like the following:
         @patch("code_autoeval.clients.llm_model.llm_model.LLMModel.__init__", return_value=None)
@@ -111,7 +99,7 @@ class SystemPrompts:
         - Assert: Check that the results are as expected.
         7. Use assert statements to verify the expected behavior.
         8. When testing for exceptions, use pytest.raises() as a context manager.
-get
+
         5. Output Format:
         - Provide a brief analysis of the function (2-3 sentences).
         - Then, provide the pytest tests.
@@ -157,17 +145,16 @@ get
         self,
         query: str,
         goal: str,
-        func_name: str,
-        function_signature: str,
-        function_docstring: str,
+        function_attributes: FunctionAttributes,
     ) -> str:
         return f"""You are an expert Python code generator. Your task is to create Python code that solves a specific problem using a provided function signature.
         Follow these instructions carefully:
 
         1. Function Details:
-        Function Name: {func_name}
-        Signature: {function_signature}
-        Docstring: {function_docstring}
+        Function Name: {function_attributes.func_name}
+        Function is async coroutine: {function_attributes.is_coroutine}
+        Signature: {function_attributes.function_signature}
+        Docstring: {function_attributes.function_docstring}
 
         2. Task: {query} - with {goal}
 
@@ -264,28 +251,22 @@ get
         coverage_report: Dict[str, Any],
         previous_code: str,
         pytest_tests: str,
-        func_name: str,
-        function_signature: str,
-        function_docstring: str,
-        function_body: str,
-        base_classes: List[str],
-        init_params: List[str],
-        class_attributes: List[str],
-        absolute_path: str,
+        function_attributes: FunctionAttributes,
         unit_test_coverage_missing: Dict[str, Any],
     ) -> str:
         base_prompt = f"""
         The previous response encountered issues. Please address the following problems and improve the code:
 
         Task: {query}
-        Function signature: {function_signature}
-        Function docstring: {function_docstring}
+        Function signature: {function_attributes.function_signature}
+        Function is async coroutine: {function_attributes.is_coroutine}
+        Function docstring: {function_attributes.function_docstring}
         """
 
         if "coverage is not 100%" in error_message:
             coverage_prompt = f"""
             Current code coverage: {coverage_report['total_coverage']}%
-            Uncovered lines in {func_name}.py:
+            Uncovered lines in {function_attributes.func_name}.py:
             {coverage_report['uncovered_lines']}
 
             To improve coverage:
@@ -325,7 +306,7 @@ get
 
         base_prompt += f"""
         Please provide:
-        1. An updated implementation of the {func_name} function.
+        1. An updated implementation of the {function_attributes.func_name} function.
         2. A comprehensive set of pytest tests that cover all code paths.
         3. Expected output for a sample input.
 

@@ -13,10 +13,10 @@ import pandas as pd
 from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
 
-from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
-from code_autoeval.clients.llm_model.utils.parse_unit_test_coverage import (
+from code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage import (
     ParseUnitTestCoverage,
 )
+from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
 from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
@@ -207,38 +207,43 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
             )
 
             try:
-                coverage_data = self.parse_coverage(
-                    self.coverage_result.stdout, str(self.file_path)
+                return self._extracted_from_run_tests_(
+                    func_name, recalculated_coverage, parsed_unit_test_coverage
                 )
-
-                # Find the only key in the coverage data.
-                coverage_data_key = list(coverage_data.keys())[0]
-
-                target_coverage = coverage_data[coverage_data_key]
-
-                print(f"Parsed coverage for {func_name}.py: {target_coverage}%")
-                print(f"Recalculated coverage: {recalculated_coverage:.2f}%")
-
-                if recalculated_coverage < 100:
-                    print(
-                        f"Warning: Code coverage is not 100%. Actual coverage: {target_coverage}%"
-                    )
-                    return parsed_unit_test_coverage
-                else:
-                    return {}
-
             except CoverageParsingError as e:
                 print(f"Error parsing coverage: {e}")
                 # If "no tests ran" then throw an error, else return False
                 if "no tests ran" in self.coverage_result.stdout:
                     raise e
 
-                raise Exception("Tests failed or coverage is not 100%")
+                raise Exception("Tests failed or coverage is not 100%") from e
 
         finally:
             # Clean up the temporary dataframe file if it was created
             if df_path:
                 os.unlink(df_path)
+
+    # TODO Rename this here and in `run_tests`
+    def _extracted_from_run_tests_(self, func_name, recalculated_coverage, parsed_unit_test_coverage):
+        coverage_data = self.parse_coverage(
+            self.coverage_result.stdout, str(self.file_path)
+        )
+
+        # Find the only key in the coverage data.
+        coverage_data_key = list(coverage_data.keys())[0]
+
+        target_coverage = coverage_data[coverage_data_key]
+
+        print(f"Parsed coverage for {func_name}.py: {target_coverage}%")
+        print(f"Recalculated coverage: {recalculated_coverage:.2f}%")
+
+        if recalculated_coverage >= 100:
+            return {}
+
+        print(
+            f"Warning: Code coverage is not 100%. Actual coverage: {target_coverage}%"
+        )
+        return parsed_unit_test_coverage
 
     def parse_coverage(self, output: str, target_file: str) -> Dict[str, int]:
         coverage_data = {}

@@ -11,7 +11,7 @@ from faker import Faker
 from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
-from code_autoeval.clients.llm_model.utils.stream_response import StreamResponse
+from code_autoeval.clients.llm_model.utils.model_response.stream_response import StreamResponse
 from code_autoeval.clients.llm_model.utils.system_prompts import SystemPrompts
 
 

@@ -63,10 +63,8 @@ class ParseUnitTestCoverage(LoggingStatements):
                     file_info = parts[0].strip()
                     missing_ranges = parts[-1].strip()
 
-                    # Extract file path
-                    file_path_match = re.search(r"(/[^\s]+\.py)", file_info)
-                    if file_path_match:
-                        file_path = file_path_match.group(1)
+                    if file_path_match := re.search(r"(/[^\s]+\.py)", file_info):
+                        file_path = file_path_match[1]
 
                         # The missing ranges are already in the correct format
                         return file_path, missing_ranges
@@ -94,9 +92,7 @@ class ParseUnitTestCoverage(LoggingStatements):
                     end_line = i - 1
                     break
 
-        if start_line and end_line:
-            return (start_line, end_line)
-        return None
+        return (start_line, end_line) if start_line and end_line else None
 
     def _parse_missing_ranges(self, missing_ranges: str) -> List[Tuple[int, int]]:
         """
@@ -170,9 +166,7 @@ class ParseUnitTestCoverage(LoggingStatements):
         all_lines = parse_range(range_string)
 
         # Convert concerned_lines to a set of line numbers
-        concerned_set = set(
-            range for ranges in concerned_lines.keys() for range in ranges
-        )
+        concerned_set = {range for ranges in concerned_lines for range in ranges}
 
         # Find the intersection of all_lines and concerned_lines
         covered_lines = all_lines.intersection(concerned_set)

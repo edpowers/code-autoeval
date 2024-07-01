@@ -16,9 +16,9 @@ import pandas as pd
 from code_autoeval.clients.llm_model.utils import (
     find_parent_class,
     preprocess_code_before_execution,
-    serializing_dataframes,
     validation,
 )
+from code_autoeval.clients.llm_model.utils.model_response import serializing_dataframes
 
 
 class ExecuteGeneratedCode(

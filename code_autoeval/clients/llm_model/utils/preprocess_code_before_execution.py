@@ -8,12 +8,12 @@ from typing import Dict, List, Optional, Tuple
 
 import black
 
-from code_autoeval.clients.llm_model.utils.extract_imports_from_file import (
+from code_autoeval.clients.llm_model.utils.extraction.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
 from code_autoeval.clients.llm_model.utils.file_path_functions import FilePathFunctions
 from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
-from code_autoeval.clients.llm_model.utils.run_pyflakes_isort import RunPyflakesIsort
+from code_autoeval.clients.llm_model.utils.code_cleaning.run_pyflakes_isort import RunPyflakesIsort
 from code_autoeval.clients.llm_model.utils.validation.validate_regexes import (
     ValidateRegexes,
     validate_code,
@@ -162,15 +162,17 @@ class PreProcessCodeBeforeExecution(
 
         # Process the code
         lines = code.splitlines()
-        processed_lines = [
-            line
-            for i, line in enumerate(lines, 1)
-            if i not in problematic_lines and len(line) <= max_line_length
-        ]
+        # processed_lines = [
+        #    line
+        #    for i, line in enumerate(lines, 1)
+        #    if i not in problematic_lines and len(line) <= max_line_length
+        # ]
 
         if import_lines_to_add:
-            processed_lines = import_lines_to_add + processed_lines
+            processed_lines = import_lines_to_add + lines
             was_modified = True
+        else:
+            processed_lines = lines
 
         return "\n".join(processed_lines), was_modified
 
