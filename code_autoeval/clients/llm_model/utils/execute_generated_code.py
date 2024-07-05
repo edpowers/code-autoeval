@@ -58,12 +58,7 @@ class ExecuteGeneratedCode(
         code = self.remove_non_code_patterns(
             original_code, code_type="function", func_name=self.init_kwargs.func_name
         )
-        # Format the code using Black
-        # formatted_code = self.format_code_with_black(
-        #    code, code_type="function", func_name=self.init_kwargs.func_name
-        # )
-
-        self._log_code(formatted_code, "Formatted code:")
+        self._log_code(code, "Formatted code:")
 
         # Add necessary imports and functions to the global scope
         global_vars = {
@@ -89,14 +84,12 @@ class ExecuteGeneratedCode(
             local_vars["df"] = df
 
         # Extract import statements
-        imports = self.extract_imports(code)
+        imports = self.extract_imports_from_gen_code(code)
 
         # Execute imports separately
         exec(imports, global_vars)
         # Remove import statements from the main code
-        main_code = re.sub(
-            r"^(import|from) .*\n?", "", formatted_code, flags=re.MULTILINE
-        )
+        main_code = re.sub(r"^(import|from) .*\n?", "", code, flags=re.MULTILINE)
 
         # Execute the code
         try:
@@ -146,7 +139,7 @@ class ExecuteGeneratedCode(
                 parts = self.init_kwargs.func_name.split(".") + [
                     self.init_kwargs.func_name
                 ]
-                if not any(part in local_vars for part in parts):
+                if all(part not in local_vars for part in parts):
                     # If the function is not in local_vars, explicitly execute its source
                     exec(target_source, global_vars, local_vars)
 
@@ -191,9 +184,7 @@ class ExecuteGeneratedCode(
             return result, context
 
         except Exception as e:
-            raise Exception(
-                f"Error executing code: {str(e)}\n Code:\n {formatted_code}"
-            ) from e
+            raise Exception(f"Error executing code: {str(e)}\n Code:\n {code}") from e
 
     def import_required_libraries(self, code: str) -> None:
         """Import required libraries based on the generated code."""
@@ -233,7 +224,7 @@ class ExecuteGeneratedCode(
 
             self._log_code("\n".join(self.imported_libraries), "Imported libraries:")
 
-    def extract_imports(self, code: str) -> str:
+    def extract_imports_from_gen_code(self, code: str) -> str:
         import_lines = [
             line
             for line in code.split("\n")

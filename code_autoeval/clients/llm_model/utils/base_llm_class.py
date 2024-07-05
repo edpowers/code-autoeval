@@ -2,7 +2,7 @@
 
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict
 
 from dotenv import find_dotenv, load_dotenv
 from multiuse.filepaths.find_project_root import FindProjectRoot
@@ -66,6 +66,8 @@ class BaseLLMClass(BaseModel):
     absolute_path_from_root: Path | None = None
 
     common: CommonAttributes = Field(default_factory=CommonAttributesFactory.create)
+
+    unique_imports_dict: Dict[str, str] = {}  # Modifiable.
 
     init_kwargs: InitKwargs = Field(
         default_factory=lambda: InitKwargs(verbose=False, debug=False, func_name="")

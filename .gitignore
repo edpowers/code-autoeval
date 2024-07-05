@@ -7,4 +7,5 @@
 .coverage
 __pycache__/
 .ruff_cache
-generated_code/
+
+.venv*

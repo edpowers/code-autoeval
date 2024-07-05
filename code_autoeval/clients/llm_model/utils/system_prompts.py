@@ -100,6 +100,13 @@ class SystemPrompts:
         7. Use assert statements to verify the expected behavior.
         8. When testing for exceptions, use pytest.raises() as a context manager.
 
+        if {function_attributes.is_coroutine=}, then use pytest-asyncio to test async functions.
+        For example:
+        @pytest.mark.asyncio
+        async def test_async_function():
+            result = await your_async_function()
+            assert result == expected_value
+
         5. Output Format:
         - Provide a brief analysis of the function (2-3 sentences).
         - Then, provide the pytest tests.
@@ -190,6 +197,9 @@ class SystemPrompts:
         - Assert: Check that the results are as expected.
         7. Use assert statements to verify the expected behavior.
         8. When testing for exceptions, use pytest.raises() as a context manager.
+
+        Fixtures are not meant to be called directly,
+        but are created automatically when test functions request them as parameters.
 
         Example of expected response format:
 

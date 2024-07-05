@@ -4,16 +4,20 @@ import os
 import re
 import subprocess
 import tempfile
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Optional, Tuple
 
-import black
-
+from code_autoeval.clients.llm_model.utils.code_cleaning.run_pyflakes_isort import (
+    RunPyflakesIsort,
+)
+from code_autoeval.clients.llm_model.utils.extraction.extract_classes_from_file import (
+    PythonClassManager,
+)
 from code_autoeval.clients.llm_model.utils.extraction.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
 from code_autoeval.clients.llm_model.utils.file_path_functions import FilePathFunctions
+from code_autoeval.clients.llm_model.utils.model import function_attributes
 from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
-from code_autoeval.clients.llm_model.utils.code_cleaning.run_pyflakes_isort import RunPyflakesIsort
 from code_autoeval.clients.llm_model.utils.validation.validate_regexes import (
     ValidateRegexes,
     validate_code,
@@ -30,20 +34,19 @@ class PreProcessCodeBeforeExecution(
         code: str,
         max_line_length: int = 120,
         class_model: Optional[ClassDataModel] = None,
+        func_attributes: function_attributes.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,
     ) -> str:
         code = self.remove_non_code_patterns(code)
 
-        if kwargs.get("code_type", "") == "pytest" or is_pytest_format:
-            # Then verify that we don't have the class definition in the test file.
-            # the class definition would be provided by the class_model
-            # class_name = class_model.class_name.split(".")[-1]
-            # code = self.wrap_remove_class_definition(code, class_name)
-            pass
-
         code, was_modified = self.preprocess_code(
-            code, max_line_length=max_line_length, class_model=class_model, **kwargs
+            code,
+            max_line_length=max_line_length,
+            class_model=class_model,
+            func_attributes=func_attributes,
+            is_pytest_format=is_pytest_format,
+            **kwargs,
         )
 
         if was_modified:
@@ -67,6 +70,8 @@ class PreProcessCodeBeforeExecution(
         code: str,
         max_line_length: int = 480,
         class_model: Optional[ClassDataModel] = None,
+        func_attributes: function_attributes.FunctionAttributes = None,
+        is_pytest_format: bool = False,
         **kwargs,
     ) -> Tuple[str, bool]:
 
@@ -93,6 +98,15 @@ class PreProcessCodeBeforeExecution(
         ) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
+
+            if kwargs.get("code_type", "") == "pytest" or is_pytest_format:
+                # Then verify that we don't have the class definition in the test file.
+                # the class definition would be provided by the class_model
+                PythonClassManager.extract_remove_class_from_file(
+                    class_model.class_name,
+                    file_path=func_attributes.test_absolute_file_path,
+                    content=code,
+                )
 
         try:
             return self._extracted_from_preprocess_code_(
@@ -139,7 +153,6 @@ class PreProcessCodeBeforeExecution(
             import_line_to_add = f"from {absolute_path} import {class_model.class_name}"
             import_lines_to_add.append(import_line_to_add)
             # And then remove the error from the list
-            # import_errors.pop(i)
             undefined_names.remove(class_model.class_name)
 
         # Add missing imports from the original file
@@ -152,6 +165,21 @@ class PreProcessCodeBeforeExecution(
         remaining_undefined = undefined_names - set(
             name for name in import_lines_to_add
         )
+
+        # If these are known modules that have import paths within the project
+        # then we can add them to the import_lines_to_add
+        # and remove them from the remaining_undefined
+        # This is to avoid adding unnecessary imports to the code
+        # and to avoid raising an error for known imports
+
+        for name in list(remaining_undefined):
+            if name in self.unique_imports_dict:
+                import_lines_to_add.append(self.unique_imports_dict[name])
+                remaining_undefined.remove(name)
+            if name in {"MagicMock", "patch", "AsyncMock"}:
+                import_lines_to_add.append(f"from unittest.mock import {name}")
+                remaining_undefined.remove(name)
+
         if remaining_undefined:
             raise ImportError(
                 f"Unresolved import errors for: {', '.join(remaining_undefined)}"
@@ -202,12 +230,6 @@ class PreProcessCodeBeforeExecution(
 
         return problematic_lines, undefined_names
 
-    def split_main_and_example(self, code: str) -> Tuple[str, str]:
-        parts = code.split('if __name__ == "__main__":')
-        if len(parts) == 2:
-            return parts[0].strip(), f'if __name__ == "__main__":{parts[1]}'
-        return code, ""
-
     @validate_code()
     def remove_non_code_patterns(self, code: str, **kwargs) -> str:
         # Remove markdown code blocks if present
@@ -219,134 +241,3 @@ class PreProcessCodeBeforeExecution(
         code = re.sub(r"```|,$", "", code)
         # Remove leading/trailing whitespace
         return code.strip()
-
-    @validate_code()
-    def format_code_with_black(self, code: str, **kwargs) -> str:
-        """Format the code using Black, removing lines with triple backticks if necessary."""
-        lines = code.split("\n")
-        cleaned_lines = self._remove_problematic_lines(lines)
-
-        try:
-            lines = self._ensure_double_quotes("\n".join(cleaned_lines))
-            return black.format_str(lines, mode=black.FileMode())
-        except black.InvalidInput as e:
-            # If Black still can't format the code, return the cleaned but unformatted code
-            print(f"Warning: Black couldn't format the code. Error: {e}")
-            return code
-
-    def _remove_problematic_lines(self, lines: List[str]) -> List[str]:
-        """Remove lines containing triple backticks."""
-        return [line for line in lines if "`" not in line]
-
-    def _ensure_double_quotes(self, code: str) -> str:
-        """Ensure the entire code block is wrapped in double quotes, preserving internal quotes."""
-        # Remove leading/trailing whitespace
-        code = code.strip()
-
-        # Escape any existing double quotes in the code
-        code = code.replace('"', '\\"')
-
-        return f'"""\n{code}\n"""'
-
-    @validate_code()
-    def _format_code_with_black(self, code: str, **kwargs) -> str:
-        """Format the code using Black, removing problematic lines if necessary."""
-        lines = code.split("\n")
-        while lines:
-            try:
-                return black.format_str("\n".join(lines), mode=black.FileMode())
-            except black.InvalidInput as e:
-                if match := re.search(r"Cannot parse: (\d+):(\d+):", str(e)):
-                    line_num = int(match[1]) - 1
-                    if 0 <= line_num < len(lines):
-                        # Comment out the problematic line
-                        lines[line_num] = (
-                            f"# REMOVED DUE TO PARSING ERROR: {lines[line_num]}"
-                        )
-                    else:
-                        self._log_code(str(lines[-1]), "Removing line:")
-                        # If we can't identify the specific line, remove the last line
-                        lines.pop()
-                else:
-                    self._log_code(str(lines[-1]), "Removing line:")
-                    # If we can't parse the error message, remove the last line
-                    lines.pop()
-
-        # If we've removed all lines, return an empty string
-        if not lines:
-            raise ValueError("All lines were removed during formatting")
-
-        return black.format_str("\n".join(lines), mode=black.FileMode())
-
-    def __remove_class_definition(self, code: str, class_name: str) -> str:
-        pattern = (
-            r"class\s+"
-            + re.escape(class_name)
-            + r"\s*(?:\([^)]*\))?\s*:\s*"  # Match class inheritance if present
-            r"(?:(?!^\S)[\s\S])*?"  # Match all indented lines
-            r"(?=^\S|\Z)"  # Stop at the first unindented line or end of string
-        )
-        return re.sub(pattern, "", code, flags=re.MULTILINE)
-
-    def wrap_remove_class_definition(self, code: str, class_name: str) -> str:
-        # Then verify that we don't have the class definition in the test file.
-        # the class definition would be provided by the class_model
-        self._log_code(class_name, "Class name: ")
-
-        if f"class {class_name}" in code:
-            # Remove actual class definition
-            code = self.remove_class_definition(code, class_name)
-
-            # Check if there's still a class definition (which might be a patched recreation)
-            remaining_class_def = re.search(
-                rf"\s*class\s+{re.escape(class_name)}\s*(\([^)]*\))?\s*:", code
-            )
-            if remaining_class_def:
-                # If it's within a patch or mock context, it's okay
-                patch_context = re.search(
-                    rf"(@patch|mock\.patch|with\s+patch)[^\n]*\n\s*class\s+{re.escape(class_name)}",
-                    code,
-                )
-                if not patch_context:
-                    raise ValueError(
-                        f"Unexpected class definition for {class_name} found in the pytest tests."
-                    )
-
-        if f"class {class_name}" in code:
-            raise ValueError(
-                f"Class definition for {class_name} found in the pytest tests."
-            )
-
-        return code
-
-    def remove_class_definition(self, code: str, class_name: str) -> str:
-        # Pattern to match class definition
-        class_pattern = rf"""
-            \s*class\s+{re.escape(class_name)}\s*(\([^)]*\))?\s*:  # Class definition
-            (?:\s*[\"\'][\"\'][\"\'][\s\S]*?[\"\'][\"\'][\"\'])?  # Optional docstring
-            (?:\s*(?!def\s+test_)[\s\S])*?  # Class body (non-greedy)
-            (?=\n(?:(?!def\s|class\s)\s*\S|$))  # Look ahead for end of class
-        """
-
-        # Function to check if a match is within a patch context
-        def is_within_patch(match):
-            start = match.start()
-            preceding_lines = code[:start].split("\n")[
-                -3:
-            ]  # Check up to 3 lines before
-            return any(
-                "@patch" in line or "mock.patch" in line or "with patch" in line
-                for line in preceding_lines
-            )
-
-        # Find all class definitions
-        matches = list(re.finditer(class_pattern, code, re.VERBOSE | re.MULTILINE))
-
-        # Remove class definitions that are not within patch contexts
-        for match in reversed(matches):  # Reverse to avoid index issues when removing
-            if not is_within_patch(match):
-                code = code[: match.start()] + code[match.end() :]
-
-        return code
-
-        return code

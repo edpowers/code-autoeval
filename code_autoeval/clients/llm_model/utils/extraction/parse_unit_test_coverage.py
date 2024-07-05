@@ -9,6 +9,10 @@ from code_autoeval.clients.llm_model.utils.logging_statements.logging_statements
 )
 
 
+class CoverageParsingError(Exception):
+    pass
+
+
 class ParseUnitTestCoverage(LoggingStatements):
 
     @classmethod
@@ -69,7 +73,7 @@ class ParseUnitTestCoverage(LoggingStatements):
                         # The missing ranges are already in the correct format
                         return file_path, missing_ranges
 
-        raise Exception("Failed to parse coverage output.")
+        raise CoverageParsingError("Failed to parse coverage output - likely due to error running tests.")
 
     def _find_function_bounds(
         self, file_path: str, function_name: str

@@ -5,11 +5,12 @@ from typing import Optional
 
 
 class ExtractContextFromException:
-    def __init__(self, context_lines: int = 3):
-        self.context_lines = context_lines
 
     def format_error(
-        self, exception: Exception, generated_code: Optional[str] = None
+        self,
+        exception: Exception,
+        generated_code: Optional[str] = None,
+        context_lines: int = 3,
     ) -> str:
         tb = traceback.extract_tb(exception.__traceback__)
         error_type = type(exception).__name__
@@ -31,7 +32,9 @@ class ExtractContextFromException:
         {traceback.format_exc()}
         """
         if generated_code:
-            relevant_code = self._get_relevant_code(generated_code, line_number)
+            relevant_code = self._get_relevant_code(
+                generated_code, line_number, context_lines=context_lines
+            )
             formatted_description += f"""
         Relevant code context:
         {relevant_code}
@@ -42,10 +45,12 @@ class ExtractContextFromException:
 
         return formatted_description.strip()
 
-    def _get_relevant_code(self, code: str, error_line: int) -> str:
+    def _get_relevant_code(
+        self, code: str, error_line: int, context_lines: int = 3
+    ) -> str:
         code_lines = code.split("\n")
-        start_line = max(0, error_line - self.context_lines - 1)
-        end_line = min(len(code_lines), error_line + self.context_lines)
+        start_line = max(0, error_line - context_lines - 1)
+        end_line = min(len(code_lines), error_line + context_lines)
 
         relevant_lines = code_lines[start_line:end_line]
 

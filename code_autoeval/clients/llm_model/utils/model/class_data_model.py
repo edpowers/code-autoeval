@@ -3,7 +3,7 @@
 import importlib
 import inspect
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from multiuse.filepaths.system_utils import SystemUtils
 from pydantic import Field
@@ -25,10 +25,10 @@ class ClassDataModel(PrettyPrintBaseModel):
     absolute_path: str  # The absolute path to the class file - full path on host system
     coroutine_methods: List[str]  # The coroutine methods of the class
 
-    module_absolute_path: Optional[Path] = Field(
+    module_absolute_path: Path = Field(
         None, description="Absolute path to the module file"
     )
-    module_relative_path: Optional[Path] = Field(
+    module_relative_path: Path = Field(
         None, description="Relative path from the project root to the module file"
     )
 

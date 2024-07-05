@@ -1,14 +1,17 @@
 """Workbook for interacting with the backend model."""
 
 # %%
+
 import asyncio
 import inspect
 import logging
 import os
 import re
 import sys
+from abc import ABC, abstractmethod
 from inspect import Parameter
 from pathlib import Path
+from typing import List
 
 import pandas as pd
 from multiuse.filepaths.find_classes_in_dir import FindClassesInDir
@@ -16,18 +19,24 @@ from multiuse.filepaths.find_project_root import FindProjectRoot
 from multiuse.filepaths.system_utils import SystemUtils
 from multiuse.log_methods.custom_logging_funcs import CustomLoggingFuncs
 
+print(CustomLoggingFuncs)
+
 path_cwd = Path(os.getcwd()).parent
 
 
 if str(path_cwd) not in sys.path:
     sys.path.insert(0, str(path_cwd))
 
-from abc import ABC, abstractmethod
-from typing import List
 
 import nest_asyncio
 from dotenv import load_dotenv
 from pydantic import create_model
+
+from code_autoeval.clients.llm_model.utils.logging_statements.common_logging_statements import (
+    CommonLoggingStatements,
+)
+
+print(CommonLoggingStatements)
 
 from code_autoeval.clients.llm_model.llm_model import LLMModel
 from code_autoeval.clients.llm_model.utils.model.class_data_model import (
@@ -232,7 +241,9 @@ display(class_data_models)
 
 
 async def generate_code_for_classes(
-    class_data_models: List[ClassDataModel], llm_model_client: LLMModel
+    class_data_models: List[ClassDataModel],
+    llm_model_client: LLMModel,
+    clean_directory_before_start: bool = True,
 ) -> None:
 
     project_root = FindProjectRoot.find_project_root(
@@ -241,9 +252,10 @@ async def generate_code_for_classes(
     # Clean the generated_code directory
     generated_code_dir = project_root.joinpath("generated_code/tests")
 
-    SystemUtils.clean_directory(
-        generated_code_dir, python_file_patterns=["*.py", "*.pyc"]
-    )
+    if clean_directory_before_start:
+        SystemUtils.clean_directory(
+            generated_code_dir, python_file_patterns=["*.py", "*.pyc"]
+        )
 
     for class_model in class_data_models:
 
@@ -254,7 +266,18 @@ async def generate_code_for_classes(
         goal = "Refactor code to handle edge cases and improve efficiency."
 
         for method in class_model.class_methods:
-            function_to_implement = getattr(class_model.class_object, method)
+            # Skip any special methods.
+            if method.startswith("__"):
+                print(f"Skipping: Special method {method}")
+                continue
+
+            try:
+                function_to_implement = getattr(class_model.class_object, method)
+            except AttributeError:
+                print(
+                    f"Error getting method {method} for class {class_model.class_name}"
+                )
+                continue
 
             query = (
                 f"Implement the {method} method for the {class_model.class_name} class."
@@ -266,7 +289,7 @@ async def generate_code_for_classes(
                 f"Implement the {method} method for the {class_model.class_name} class."
             )
             try:
-                code, serialized_result, expected_output, context, pytest_tests = (
+                code, serialized_result, context, pytest_tests = (
                     await llm_model_client.code_generator(
                         query,
                         function_to_implement,
@@ -291,13 +314,19 @@ async def generate_code_for_classes(
 # %%
 
 
-async def main3() -> None:
+async def main3(clean_directory_before_start: bool = False) -> None:
     # Assuming llm_model_client is already initialized
-    await generate_code_for_classes(class_data_models, llm_model_client)
+    await generate_code_for_classes(
+        class_data_models,
+        llm_model_client,
+        clean_directory_before_start=clean_directory_before_start,
+    )
 
 
 # Run the async main function
-value = asyncio.run(main3())
+value = asyncio.run(main3(clean_directory_before_start=False))
+
+
 # %%
 # %%
 

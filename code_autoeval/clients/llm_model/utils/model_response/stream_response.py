@@ -58,7 +58,7 @@ class StreamResponse(BaseLLMClass):
         self,
         url: str,
         payload: Dict[str, Any],
-        timeout: int = 15,
+        timeout: int = 30,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Streams the response from the API, yielding each chunk as it's received.
 

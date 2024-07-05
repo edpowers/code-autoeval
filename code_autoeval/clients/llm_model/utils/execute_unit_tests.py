@@ -14,15 +14,19 @@ from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
 
 from code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage import (
+    CoverageParsingError,
     ParseUnitTestCoverage,
 )
 from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel
+from code_autoeval.clients.llm_model.utils.model.function_attributes import (
+    FunctionAttributes,
+)
 from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
 
 
-class CoverageParsingError(Exception):
+class FormattingError(Exception):
     pass
 
 
@@ -30,9 +34,48 @@ class NoTestsInPytestFile(Exception):
     pass
 
 
+class MissingCoverageException(BaseException):
+    pass
+
+
 class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
 
     coverage_result: subprocess.CompletedProcess = None
+
+    def parse_existing_tests_or_raise_exception(
+        self,
+        function_attributes: FunctionAttributes,
+        df: pd.DataFrame,
+        debug: bool = False,
+        class_model: Optional[ClassDataModel] = None,
+        attempt: int = 0,
+        error_message: str = "",
+    ) -> Tuple[str, pd.DataFrame, Dict[str, Any], str]:
+        """Parse the existing tests or raise an exception if tests are missing."""
+        if (
+            function_attributes.test_absolute_file_path
+            and function_attributes.module_absolute_path
+            and Path(function_attributes.test_absolute_file_path).exists()
+            and Path(function_attributes.module_absolute_path).exists()
+            and attempt == 0
+            and not error_message
+        ):
+            if unit_test_coverage_missing := self.run_tests(
+                self.init_kwargs.func_name,
+                function_attributes.module_absolute_path,
+                function_attributes.test_absolute_file_path,
+                df,
+                debug=debug,
+                class_model=class_model,
+            ):
+                raise MissingCoverageException("Tests failed or coverage is not 100%")
+
+        return (
+            "",
+            df,
+            {},
+            "",
+        )
 
     def write_code_and_tests(
         self,
@@ -40,6 +83,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         pytest_tests: str,
         func: Callable,
         class_model: Optional[ClassDataModel] = None,
+        func_attributes: Optional[FunctionAttributes] = None,
     ) -> None:
 
         self.validate_test_in_pytest_code(pytest_tests)
@@ -57,6 +101,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
             code_type="pytest",
             func_name=self.init_kwargs.func_name,
             class_model=class_model,
+            func_attributes=func_attributes,
             is_pytest_format=True,
         )
 
@@ -129,9 +174,6 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         debug: bool = False,
         class_model: Optional[ClassDataModel] = None,
     ) -> Dict[str, Any]:
-        if not self.test_file_path:
-            raise ValueError("No test file path set. Please write tests first.")
-
         # Get the absolute path from the project root
         format_test_path = SystemUtils.format_path_for_import(test_file_path)
         # Remove the project root from the path
@@ -163,7 +205,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
             # Prepare the pytest command
             pytest_command = [
                 "pytest",
-                str(self.test_file_path.resolve()),
+                str(test_file_path.resolve()),
                 "-v",
                 f"--cov={code_path_to_cover}",
                 "--cov-report=term-missing",
@@ -190,33 +232,48 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
                 text=True,
             )
 
+            if "was never imported" in self.coverage_result.stderr:
+                raise FormattingError("Couldn't even import the test file. Removing.")
+
             self._log_coverage_results(self.coverage_result)
 
-            parsed_unit_test_coverage, recalculated_coverage = (
-                ParseUnitTestCoverage.run_parse_unit_test_cov(
-                    self.coverage_result.stdout,
-                    project_root=self.common.project_root,
-                    relative_path=code_path_to_cover,
-                    func_name=self.init_kwargs.func_name.split(".")[-1],
-                )
-            )
-
-            self._log_code(
-                f"{parsed_unit_test_coverage}",
-                intro_message="parsed_unit_test_coverage: ",
-            )
-
             try:
+                parsed_unit_test_coverage, recalculated_coverage = (
+                    ParseUnitTestCoverage.run_parse_unit_test_cov(
+                        self.coverage_result.stdout,
+                        project_root=self.common.project_root,
+                        relative_path=code_path_to_cover,
+                        func_name=self.init_kwargs.func_name.split(".")[-1],
+                    )
+                )
+
+                self._log_code(
+                    f"{parsed_unit_test_coverage}",
+                    intro_message="parsed_unit_test_coverage: ",
+                )
                 return self._extracted_from_run_tests_(
                     func_name, recalculated_coverage, parsed_unit_test_coverage
                 )
+            except (
+                ImportError,
+                SyntaxError,
+                IndentationError,
+                ModuleNotFoundError,
+            ) as oe:
+                raise FormattingError(
+                    "Error in importation, formatting, indentation etc.."
+                ) from oe
             except CoverageParsingError as e:
                 print(f"Error parsing coverage: {e}")
                 # If "no tests ran" then throw an error, else return False
                 if "no tests ran" in self.coverage_result.stdout:
-                    raise e
+                    raise FormattingError(
+                        "Error in importation, formatting, indentation etc.."
+                    ) from e
 
-                raise Exception("Tests failed or coverage is not 100%") from e
+                raise Exception(
+                    "Tests failed or coverage is not 100% - raising exception"
+                ) from e
 
         finally:
             # Clean up the temporary dataframe file if it was created
@@ -224,7 +281,9 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
                 os.unlink(df_path)
 
     # TODO Rename this here and in `run_tests`
-    def _extracted_from_run_tests_(self, func_name, recalculated_coverage, parsed_unit_test_coverage):
+    def _extracted_from_run_tests_(
+        self, func_name, recalculated_coverage, parsed_unit_test_coverage
+    ):
         coverage_data = self.parse_coverage(
             self.coverage_result.stdout, str(self.file_path)
         )

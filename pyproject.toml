@@ -20,6 +20,7 @@ flake8 = "^7.1.0"
 numpy = "^2.0.0"
 pandas = "^2.2.2"
 faker = "^25.9.1"
+pytest-asyncio = "^0.23.7"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -30,19 +30,19 @@ class FunctionAttributes(BaseModel):
     )
 
     # File paths to the source module containing the function
-    module_absolute_path: Optional[Path] = Field(
+    module_absolute_path: Path = Field(
         None, description="Absolute path to the module file"
     )
 
-    module_relative_path: Optional[Path] = Field(
+    module_relative_path: Path = Field(
         None, description="Relative path from the project root to the module file"
     )
 
     # File paths to unit tests generated for the function
-    test_relative_file_path: Optional[Path] = Field(
+    test_relative_file_path: Path = Field(
         None, description="Relative path to the generated test file"
     )
-    test_absolute_file_path: Optional[Path] = Field(
+    test_absolute_file_path: Path = Field(
         None, description="Absolute path to the generated test file"
     )
 

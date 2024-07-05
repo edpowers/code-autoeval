@@ -4,9 +4,14 @@
 
 import asyncio
 from abc import ABC, abstractmethod
+from pprint import pprint
 
 import nest_asyncio
 import pandas as pd
+
+from code_autoeval.clients.llm_model.utils.extraction.extract_imports_from_file import (
+    ExtractImportsFromFile,
+)
 
 nest_asyncio.apply()
 
@@ -217,5 +222,27 @@ pprint(example)
 pprint(
     '\n        The previous response encountered issues. Please address the following problems and improve the code:\n\n        Task: Implement the code_generator method for the LLMModel class.\n        Function signature: (self, query: str, func: Callable[..., Any], df: Optional[pandas.core.frame.DataFrame] = None, goal: Optional[str] = None, verbose: bool = True, debug: bool = False, max_retries: int = 3, skip_generate_fake_data: bool = False, class_model: code_autoeval.clients.llm_model.utils.model.class_data_model.ClassDataModel = None) -> Tuple[str, Any, str, Dict[str, Any], str]\n        Function is async coroutine: True\n        Function docstring: Generates Python code based on the query, provided function, and optional dataframe.\n\n:param query: The user\'s query describing the desired functionality\n:param func: The function to be implemented\n:param df: Optional dataframe to use for testing and validation\n:param goal: Optional specific goal for the function (e.g., "replace every instance of \'Australia\'")\n:param verbose: Whether to print verbose output\n:param debug: Whether to print debug information\n:param max_retries: Maximum number of retries for code generation\n:param skip_generate_fake_data: Whether to skip generating fake data\n        \n            Execution error encountered:\n            Error: Failed to parse coverage output.\n\n            Please review the code and address the following:\n            1. Check for syntax errors or logical issues in the implementation.\n            2. Ensure all necessary imports are included.\n            3. Verify that the function handles all possible input scenarios correctly.\n\n            Previous code that generated the error:\n            import pytest\nfrom unittest.mock import patch, MagicMock\nfrom code_autoeval.clients.llm_model.llm_model import LLMModel\nimport pandas as pd\nimport numpy as np\n\n# Mocking dependencies\n@patch("code_autoeval.clients.llm_model.llm_model.LLMModel.__init__", return_value=None)\ndef test_normal_case(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    df = pd.DataFrame({\'A\': [1, 2, 3]})\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 3\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act\n    result = mock_instance.code_generator(query, func, df, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n\n    # Assert\n    assert isinstance(result, tuple)\n    assert len(result) == 5\n    assert isinstance(result[0], str)\n    assert callable(result[1])\n    assert isinstance(result[2], str)\n    assert isinstance(result[3], dict)\n    assert isinstance(result[4], str)\n\ndef test_edge_case_with_no_df(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 3\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act\n    result = mock_instance.code_generator(query, func, df=None, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n\n    # Assert\n    assert isinstance(result, tuple)\n    assert len(result) == 5\n    assert isinstance(result[0], str)\n    assert callable(result[1])\n    assert isinstance(result[2], str)\n    assert isinstance(result[3], dict)\n    assert isinstance(result[4], str)\n\ndef test_error_condition_with_max_retries(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    df = pd.DataFrame({\'A\': [1, 2, 3]})\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 1\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act and Assert\n    with pytest.raises(Exception):\n        mock_instance.code_generator(query, func, df, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n\nimport pytest\nfrom unittest.mock import patch, MagicMock\nfrom code_autoeval.clients.llm_model.llm_model import LLMModel\nimport pandas as pd\nimport numpy as np\n\n# Mocking dependencies\n@patch("code_autoeval.clients.llm_model.llm_model.LLMModel.__init__", return_value=None)\ndef test_normal_case(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    df = pd.DataFrame({\'A\': [1, 2, 3]})\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 3\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act\n    result = mock_instance.code_generator(query, func, df, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n\n    # Assert\n    assert isinstance(result, tuple)\n    assert len(result) == 5\n    assert isinstance(result[0], str)\n    assert callable(result[1])\n    assert isinstance(result[2], str)\n    assert isinstance(result[3], dict)\n    assert isinstance(result[4], str)\n\ndef test_edge_case_with_no_df(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 3\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act\n    result = mock_instance.code_generator(query, func, df=None, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n\n    # Assert\n    assert isinstance(result, tuple)\n    assert len(result) == 5\n    assert isinstance(result[0], str)\n    assert callable(result[1])\n    assert isinstance(result[2], str)\n    assert isinstance(result[3], dict)\n    assert isinstance(result[4], str)\n\ndef test_error_condition_with_max_retries(mock_init):\n    # Arrange\n    mock_instance = LLMModel()\n    query = "example query"\n    func = lambda x: x + 1\n    df = pd.DataFrame({\'A\': [1, 2, 3]})\n    goal = None\n    verbose = True\n    debug = False\n    max_retries = 1\n    skip_generate_fake_data = False\n    class_model = None\n\n    # Act and Assert\n    with pytest.raises(Exception):\n        mock_instance.code_generator(query, func, df, goal, verbose, debug, max_retries, skip_generate_fake_data, class_model)\n            \n        Please provide:\n        1. An updated implementation of the LLMModel.code_generator function.\n        2. A comprehensive set of pytest tests that cover all code paths.\n        3. Expected output for a sample input.\n\n        Remember to handle all possible scenarios, including:\n        - Empty inputs (e.g., empty DataFrames, empty columns)\n        - Invalid inputs (e.g., non-existent columns, incorrect data types)\n        - Edge cases (e.g., very large or very small values, NaN values)\n        - Various data types (e.g., integers, floats, strings, dates)\n\n        Ensure that your implementation is robust and handles errors gracefully.\n        '
 )
+
+# %%
+
+extract_imports = ExtractImportsFromFile()
+# %%
+
+
+from code_autoeval.clients.llm_model.utils.extraction.extract_classes_from_file import (
+    PythonClassManager,
+)
+
+file_path = "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel_split_content_from_model.py"
+content = ""
+
+manager = PythonClassManager(file_path, content=content)
+
+class_definitions = manager.find_class_definitions()
+
+# %%
+
+
+manager.extract_remove_class_from_file("LLMModel", file_path=file_path)
 
 # %%
