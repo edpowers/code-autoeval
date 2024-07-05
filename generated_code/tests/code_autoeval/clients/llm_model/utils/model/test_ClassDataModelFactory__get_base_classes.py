@@ -2,98 +2,90 @@
 from typing import Any, List
 
 
-class ClassDataModelFactory:
-    @staticmethod
-    def _get_base_classes(class_to_process: Any) -> List[str]:
-        if not isinstance(class_to_process, type):
-            raise ValueError("Input must be a class type")
-        return [base.__name__ for base in class_to_process.__bases__]
+def _get_base_classes(class_to_process: Any) -> List[str]:
+    if not isinstance(class_to_process, type):
+        raise TypeError("Input must be a class type")
+    return [base.__name__ for base in class_to_process.__bases__]
 
-# Updated Implementation of ClassDataModelFactory._get_base_classes function
-from typing import Any, List
-
-
-class ClassDataModelFactory:
-    @staticmethod
-    def _get_base_classes(class_to_process: Any) -> List[str]:
-        if not isinstance(class_to_process, type):
-            raise ValueError("Input must be a class type")
-        return [base.__name__ for base in class_to_process.__bases__]
-
-from typing import List
 from unittest.mock import patch
 
+# Comprehensive Set of pytest Tests
 import pytest
 
 
-# Updated implementation of ClassDataModelFactory._get_base_classes function
-class ClassDataModelFactory:
-    @staticmethod
-    def _get_base_classes(class_to_process: Any) -> List[str]:
-        if not isinstance(class_to_process, type):
-            raise ValueError("Input must be a class type")
-        return [base.__name__ for base in class_to_process.__bases__]
+def _get_base_classes(class_to_process: Any) -> List[str]:
+    if not isinstance(class_to_process, type):
+        raise TypeError("Input must be a class type")
+    return [base.__name__ for base in class_to_process.__bases__]
 
-# Test the function with normal case
-@patch("code_autoeval.clients.llm_model.utils.model.class_data_model.ClassDataModelFactory._get_base_classes")
-def test_normal_case(mock_get_base_classes):
+# Test the function
+@pytest.mark.asyncio
+async def test_normal_case():
     # Arrange
-    class MockClass:
-        pass
+    class MockClass(object): pass
     
-    mock_bases = [MockClass, object]
-    mock_get_base_classes.return_value = ['MockClass', 'object']
+    mock_class = MockClass()
+    expected_output = ['object']
     
     # Act
-    result = ClassDataModelFactory._get_base_classes(MockClass)
+    result = await _get_base_classes(mock_class)
     
     # Assert
-    assert result == ['MockClass', 'object']
+    assert result == expected_output
 
-# Test the function with no base classes
-def test_no_bases():
+@pytest.mark.asyncio
+async def test_no_bases():
     # Arrange
-    class NoBaseClass:
-        pass
+    class MockClass: pass
+    
+    mock_class = MockClass()
+    expected_output = []
     
     # Act
-    result = ClassDataModelFactory._get_base_classes(NoBaseClass)
+    result = await _get_base_classes(mock_class)
     
     # Assert
-    assert result == []
+    assert result == expected_output
 
-# Test the function with a single base class
-def test_single_base():
+@pytest.mark.asyncio
+async def test_multiple_bases():
     # Arrange
-    class SingleBaseClass(object):
-        pass
+    class Base1: pass
+    class Base2: pass
+    class MockClass(Base1, Base2): pass
+    
+    mock_class = MockClass()
+    expected_output = ['Base1', 'Base2']
     
     # Act
-    result = ClassDataModelFactory._get_base_classes(SingleBaseClass)
+    result = await _get_base_classes(mock_class)
     
     # Assert
-    assert result == ['object']
+    assert result == expected_output
 
-# Test the function with multiple base classes
-def test_multiple_bases():
+@pytest.mark.asyncio
+async def test_none():
     # Arrange
-    class Base1:
-        pass
+    mock_class = None
     
-    class Base2(Base1):
-        pass
-    
-    class MultipleBases(Base2, object):
-        pass
-    
-    # Act
-    result = ClassDataModelFactory._get_base_classes(MultipleBases)
-    
-    # Assert
-    assert result == ['Base2', 'Base1', 'object']
+    # Act and Assert
+    with pytest.raises(TypeError):
+        await _get_base_classes(mock_class)
 
-# Test the function with invalid input (non-class type)
-def test_invalid_input():
+@pytest.mark.asyncio
+async def test_non_type():
     # Arrange
-    with pytest.raises(ValueError):
-        ClassDataModelFactory._get_base_classes("NotAClass")
+    mock_class = "not a class"
+    
+    # Act and Assert
+    with pytest.raises(AttributeError):
+        await _get_base_classes(mock_class)
+
+@pytest.mark.asyncio
+async def test_non_class():
+    # Arrange
+    mock_class = 12345
+    
+    # Act and Assert
+    with pytest.raises(TypeError):
+        await _get_base_classes(mock_class)

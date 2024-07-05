@@ -8,77 +8,109 @@ class AutoFunctionCleaning:
     def __init__(self, data):
         self.data = data
 
-    def clean_func_args_from_file(self, code: str) -> str:
+    async def clean_func_args_from_file(self, code: str) -> str:
         # Placeholder for the actual implementation of clean_func_args_from_file
-        return code  # Mocked method returns the input code unchanged
+        pass
 
-    async def clean_func_args_from_lines(self, code_lines: List[str]) -> List[str]:
+    def clean_func_args_from_lines(self, code_lines: List[str]) -> List[str]:
         full_code = "\n".join(code_lines)
         cleaned_code = self.clean_func_args_from_file(full_code)
         return cleaned_code.split("\n")
 
+
 # Analysis of the function:
-# The function `clean_func_args_from_lines` takes a list of code lines, joins them into a single string,
-# cleans this string using the `clean_func_args_from_file` method, and then splits the cleaned string back into lines.
-# This function is designed to clean function arguments from the code.
+# The function joins the list of code lines into a single string, cleans it using another method, and then splits the cleaned code back into lines.
 
 ##################################################
 # TESTS
 ##################################################
 
-@patch("code_autoeval.clients.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file")
-def test_normal_use_case(mock_clean_func_args_from_file):
-    # Arrange
-    mock_clean_func_args_from_file.return_value = "cleaned code"
-    auto_function_cleaning = AutoFunctionCleaning("data")
-    code_lines = ["line1", "line2"]
-    
-    # Act
-    result = auto_function_cleaning.clean_func_args_from_lines(code_lines)
-    
-    # Assert
-    assert result == ["cleaned code"]
-    mock_clean_func_args_from_file.assert_called_once_with("\n".join(code_lines))
 
-def test_edge_case_empty_list():
-    # Arrange
-    auto_function_cleaning = AutoFunctionCleaning("data")
-    
-    # Act
-    result = auto_function_cleaning.clean_func_args_from_lines([])
-    
-    # Assert
-    assert result == [""]
+@pytest.fixture
+def mock_auto_function_cleaning():
+    return AutoFunctionCleaning(None)
 
-def test_edge_case_single_line():
-    # Arrange
-    auto_function_cleaning = AutoFunctionCleaning("data")
-    code_lines = ["line1"]
-    
-    # Act
-    result = auto_function_cleaning.clean_func_args_from_lines(code_lines)
-    
-    # Assert
-    assert result == ["line1"]
 
-def test_error_condition():
+@patch(
+    "code_autoeval.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file"
+)
+def test_clean_func_args_from_lines_normal(
+    mock_clean_func, mock_auto_function_cleaning
+):
     # Arrange
-    auto_function_cleaning = AutoFunctionCleaning("data")
-    code_lines = ["line1", "line2"]
-    
-    # Act and Assert
-    with pytest.raises(Exception):  # Replace Exception with the expected error type
-        auto_function_cleaning.clean_func_args_from_lines(code_lines)
+    code_lines = ["line1", "line2", "line3"]
+    expected_output = ["cleaned_line1", "cleaned_line2", "cleaned_line3"]
+    mock_clean_func.return_value = "\n".join(expected_output)
 
-@patch("code_autoeval.clients.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file")
-def test_mocked_clean_method(mock_clean_func_args_from_file):
-    # Arrange
-    mock_clean_func_args_from_file.return_value = "cleaned code"
-    auto_function_cleaning = AutoFunctionCleaning("data")
-    code_lines = ["line1", "line2"]
-    
     # Act
-    result = auto_function_cleaning.clean_func_args_from_lines(code_lines)
-    
+    result = mock_auto_function_cleaning.clean_func_args_from_lines(code_lines)
+
     # Assert
-    assert result == ["cleaned code"]
+    assert result == expected_output
+    mock_clean_func.assert_called_once_with("\n".join(code_lines))
+
+
+def test_clean_func_args_from_lines_empty(mock_auto_function_cleaning):
+    # Arrange
+    code_lines = []
+    expected_output = []
+
+    # Act
+    result = mock_auto_function_cleaning.clean_func_args_from_lines(code_lines)
+
+    # Assert
+    assert result == expected_output
+
+
+@patch(
+    "code_autoeval.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file"
+)
+def test_clean_func_args_from_lines_with_none(
+    mock_clean_func, mock_auto_function_cleaning
+):
+    # Arrange
+    code_lines = ["line1", None, "line3"]
+    expected_output = ["line1", "line3"]
+    mock_clean_func.return_value = "\n".join(code_lines).replace(None, "")
+
+    # Act
+    result = mock_auto_function_cleaning.clean_func_args_from_lines(code_lines)
+
+    # Assert
+    assert result == expected_output
+
+
+@patch(
+    "code_autoeval.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file"
+)
+def test_clean_func_args_from_lines_with_empty(
+    mock_clean_func, mock_auto_function_cleaning
+):
+    # Arrange
+    code_lines = ["line1", "", "line3"]
+    expected_output = ["line1", "line3"]
+    mock_clean_func.return_value = "\n".join(code_lines).replace("", "")
+
+    # Act
+    result = mock_auto_function_cleaning.clean_func_args_from_lines(code_lines)
+
+    # Assert
+    assert result == expected_output
+
+
+@patch(
+    "code_autoeval.llm_model.utils.code_cleaning.auto_function_cleaning.AutoFunctionCleaning.clean_func_args_from_file"
+)
+def test_clean_func_args_from_lines_with_whitespace(
+    mock_clean_func, mock_auto_function_cleaning
+):
+    # Arrange
+    code_lines = ["line1", "   ", "line3"]
+    expected_output = ["line1", "line3"]
+    mock_clean_func.return_value = "\n".join(code_lines).replace("   ", "")
+
+    # Act
+    result = mock_auto_function_cleaning.clean_func_args_from_lines(code_lines)
+
+    # Assert
+    assert result == expected_output

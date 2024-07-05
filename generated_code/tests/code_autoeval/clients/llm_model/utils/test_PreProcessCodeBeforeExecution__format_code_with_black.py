@@ -14,11 +14,12 @@ class PreProcessCodeBeforeExecution:
         # Then verify that we don't have the class definition in the test file.
         if f"class {kwargs['class_name']}" in code:
             # Remove actual class definition
-            code = self.remove_class_definition(code, kwargs['class_name'])
+            code = self.remove_class_definition(code, kwargs["class_name"])
 
             # Check if there's still a class definition (which might be a patched recreation)
             remaining_class_def = re.search(
-                rf"\s*class\s+{re.escape(kwargs['class_name'])}\s*(\([^)]*\))?\s*:", code
+                rf"\s*class\s+{re.escape(kwargs['class_name'])}\s*(\([^)]*\))?\s*:",
+                code,
             )
             if remaining_class_def:
                 # If it's within a patch or mock context, it's okay
@@ -44,11 +45,15 @@ class PreProcessCodeBeforeExecution:
         pattern = re.compile(rf"class\s+{re.escape(class_name)}\s*(\([^)]*\))?\s*:")
         return re.sub(pattern, "", code)
 
+
 ##################################################
 # TESTS
 ##################################################
 
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._format_code_with_black")
+
+@patch(
+    "code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._format_code_with_black"
+)
 def test_normal_use_case(mock_format_code):
     # Arrange
     code = "class TestClass:\n    pass"
@@ -56,10 +61,13 @@ def test_normal_use_case(mock_format_code):
     mock_format_code.return_value = code
 
     # Act
-    result = PreProcessCodeBeforeExecution._format_code_with_black(None, code, class_name=class_name)
+    result = PreProcessCodeBeforeExecution._format_code_with_black(
+        None, code, class_name=class_name
+    )
 
     # Assert
     assert result == code
+
 
 def test_edge_case_no_class():
     # Arrange
@@ -68,7 +76,10 @@ def test_edge_case_no_class():
 
     # Act & Assert
     with pytest.raises(ValueError):
-        PreProcessCodeBeforeExecution._format_code_with_black(None, code, class_name=class_name)
+        PreProcessCodeBeforeExecution._format_code_with_black(
+            None, code, class_name=class_name
+        )
+
 
 def test_error_condition():
     # Arrange
@@ -77,14 +88,21 @@ def test_error_condition():
 
     # Act & Assert
     with pytest.raises(ValueError):
-        PreProcessCodeBeforeExecution._format_code_with_black(None, code, class_name=class_name)
+        PreProcessCodeBeforeExecution._format_code_with_black(
+            None, code, class_name=class_name
+        )
+
 
 def test_mocking():
     # Arrange
     code = "class TestClass:\n    pass"
     class_name = "TestClass"
 
-    with patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._format_code_with_black") as mock_format_code:
+    with patch(
+        "code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._format_code_with_black"
+    ) as mock_format_code:
         # Act & Assert
-        PreProcessCodeBeforeExecution._format_code_with_black(None, code, class_name=class_name)
+        PreProcessCodeBeforeExecution._format_code_with_black(
+            None, code, class_name=class_name
+        )
         assert mock_format_code.called

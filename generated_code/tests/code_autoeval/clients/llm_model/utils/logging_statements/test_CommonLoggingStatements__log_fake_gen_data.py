@@ -1,101 +1,100 @@
 # Updated Implementation of CommonLoggingStatements._log_fake_gen_data function
-class CommonLoggingStatements:
-    def __init__(self, init_kwargs):
-        self.init_kwargs = init_kwargs
+import logging
+from typing import Any
 
-    async def _log_fake_gen_data(self, fake_data):
+
+class CommonLoggingStatements:
+    def __init__(self, init_kwargs: dict):
+        self.init_kwargs = init_kwargs
+        # Initialize other necessary attributes here
+
+    async def _log_fake_gen_data(self, fake_data: Any) -> None:
         if self.init_kwargs.get('debug', False):
-            print("\nGenerated fake DataFrame:")
-            print(fake_data)
-            print()
+            logging.info("\nGenerated fake DataFrame:")
+            logging.info(fake_data)
+            logging.info()
 
 from unittest.mock import patch
 
+import numpy as np
 import pandas as pd
-
-# Updated pytest tests for CommonLoggingStatements._log_fake_gen_data function
 import pytest
 
 
-# Assuming CommonLoggingStatements and its dependencies are defined elsewhere
-class CommonLoggingStatements:
-    def __init__(self, init_kwargs):
-        self.init_kwargs = init_kwargs
-
-    async def _log_fake_gen_data(self, fake_data):
-        if self.init_kwargs.get('debug', False):
-            print("\nGenerated fake DataFrame:")
-            print(fake_data)
-            print()
-
-# Test class for CommonLoggingStatements
-@pytest.fixture
-def common_logging_statements():
-    return CommonLoggingStatements(init_kwargs={'debug': True})
-
-def test_log_fake_gen_data_normal(common_logging_statements):
+# Mocking the CommonLoggingStatements class and its __init__ method
+@patch("code_autoeval.llm_model.utils.logging_statements.common_logging_statements.CommonLoggingStatements.__init__", return_value=None)
+def test_log_fake_gen_data_with_debug(mock_init):
     # Arrange
     fake_data = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
-    
-    # Act
-    with patch('builtins.print') as mock_print:
-        common_logging_statements._log_fake_gen_data(fake_data)
-    
-    # Assert
-    mock_print.assert_called()
-    assert "Generated fake DataFrame:" in str(mock_print.call_args[0][0])
-    assert str(fake_data) in str(mock_print.call_args[0][0])
+    init_kwargs = {'debug': True}
+    log_instance = CommonLoggingStatements(init_kwargs)
 
-def test_log_fake_gen_data_no_debug(common_logging_statements):
+    # Act
+    await log_instance._log_fake_gen_data(fake_data)
+
+    # Assert
+    mock_init.assert_called_once_with(init_kwargs)
+    captured = capsys.readouterr()
+    assert "Generated fake DataFrame:" in captured.out
+    assert str(fake_data.to_markdown()) in captured.out
+
+@pytest.mark.asyncio
+async def test_log_fake_gen_data_without_debug(mock_init):
     # Arrange
-    common_logging_statements.init_kwargs['debug'] = False
     fake_data = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
-    
-    # Act
-    with patch('builtins.print') as mock_print:
-        common_logging_statements._log_fake_gen_data(fake_data)
-    
-    # Assert
-    mock_print.assert_not_called()
+    init_kwargs = {'debug': False}
+    log_instance = CommonLoggingStatements(init_kwargs)
 
-def test_log_fake_gen_data_empty_dataframe():
+    # Act
+    await log_instance._log_fake_gen_data(fake_data)
+
+    # Assert
+    mock_init.assert_called_once_with(init_kwargs)
+    captured = capsys.readouterr()
+    assert "Generated fake DataFrame:" not in captured.out
+
+@pytest.mark.asyncio
+async def test_log_fake_gen_data_empty_dataframe():
     # Arrange
     fake_data = pd.DataFrame({'col1': [], 'col2': []})
-    common_logging_statements = CommonLoggingStatements(init_kwargs={'debug': True})
-    
-    # Act
-    with patch('builtins.print') as mock_print:
-        common_logging_statements._log_fake_gen_data(fake_data)
-    
-    # Assert
-    mock_print.assert_called()
-    assert "Generated fake DataFrame:" in str(mock_print.call_args[0][0])
-    assert str(fake_data) in str(mock_print.call_args[0][0])
+    init_kwargs = {'debug': True}
+    log_instance = CommonLoggingStatements(init_kwargs)
 
-def test_log_fake_gen_data_large_dataframe():
-    # Arrange
-    fake_data = pd.DataFrame({f'col{i}': list(range(100)) for i in range(1, 26)})
-    common_logging_statements = CommonLoggingStatements(init_kwargs={'debug': True})
-    
     # Act
-    with patch('builtins.print') as mock_print:
-        common_logging_statements._log_fake_gen_data(fake_data)
-    
-    # Assert
-    mock_print.assert_called()
-    assert "Generated fake DataFrame:" in str(mock_print.call_args[0][0])
-    assert str(fake_data) in str(mock_print.call_args[0][0])
+    await log_instance._log_fake_gen_data(fake_data)
 
-def test_log_fake_gen_data_series():
-    # Arrange
-    fake_data = pd.Series([1, 2, 3, 4, 5])
-    common_logging_statements = CommonLoggingStatements(init_kwargs={'debug': True})
-    
-    # Act
-    with patch('builtins.print') as mock_print:
-        common_logging_statements._log_fake_gen_data(fake_data)
-    
     # Assert
-    mock_print.assert_called()
-    assert "Generated fake DataFrame:" in str(mock_print.call_args[0][0])
-    assert str(fake_data) in str(mock_print.call_args[0][0])
+    captured = capsys.readouterr()
+    assert "Generated fake DataFrame:" in captured.out
+    assert str(fake_data.to_markdown()) in captured.out
+
+@pytest.mark.asyncio
+async def test_log_fake_gen_data_with_nan():
+    # Arrange
+    fake_data = pd.DataFrame({'col1': [1, np.nan], 'col2': ['a', 'b']})
+    init_kwargs = {'debug': True}
+    log_instance = CommonLoggingStatements(init_kwargs)
+
+    # Act
+    await log_instance._log_fake_gen_data(fake_data)
+
+    # Assert
+    captured = capsys.readouterr()
+    assert "Generated fake DataFrame:" in captured.out
+    assert str(fake_data.to_markdown()) in captured.out
+
+@pytest.mark.asyncio
+async def test_log_fake_gen_data_with_error():
+    # Arrange
+    fake_data = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
+    init_kwargs = {'debug': True}
+    log_instance = CommonLoggingStatements(init_kwargs)
+
+    # Act and Assert
+    with pytest.raises(Exception):
+        await log_instance._log_fake_gen_data(None)  # Passing None to simulate an error
+
+Generated fake DataFrame:
+   col1 col2
+0     1    a
+1     2    b

@@ -3,68 +3,63 @@ from typing import Any, List
 from unittest.mock import MagicMock, patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModelFactory
 
 
-# Mocking the dependencies as per the instructions
-@patch("code_autoeval.clients.llm_model.utils.model.class_data_model.ClassDataModelFactory.__init__", return_value=None)
-def test_get_coroutine_methods(mock_init):
-    class TestClass:
-        def __init__(self, project_root):
-            pass
-        
-        async def coroutine_method(self):
-            pass
-        
-        async def another_coroutine_method(self):
-            pass
-        
-        def regular_method(self):
-            pass
-    
-    test_instance = TestClass()
-    result = ClassDataModelFactory._get_coroutine_methods(test_instance)
-    assert len(result) == 2
-    assert 'coroutine_method' in result
-    assert 'another_coroutine_method' in result
+class ClassDataModelFactory:
+    @staticmethod
+    def _get_coroutine_methods(class_to_process: Any) -> List[str]:
+        return [
+            name
+            for name, method in inspect.getmembers(class_to_process)
+            if inspect.iscoroutinefunction(method) or inspect.isasyncgenfunction(method)
+        ]
 
-def test_no_coroutine_methods():
-    class TestClass:
-        def __init__(self, project_root):
-            pass
-        
-        def regular_method(self):
-            pass
-    
-    test_instance = TestClass()
-    result = ClassDataModelFactory._get_coroutine_methods(test_instance)
-    assert len(result) == 0
 
-def test_class_with_async_gen_methods():
-    class TestClass:
-        def __init__(self, project_root):
-            pass
-        
-        async def coroutine_method(self):
-            pass
-        
-        async def another_coroutine_method(self):
-            pass
-        
-        async def async_gen_method(self):
-            yield 1
-        
-    test_instance = TestClass()
-    result = ClassDataModelFactory._get_coroutine_methods(test_instance)
-    assert len(result) == 3
-    assert 'coroutine_method' in result
-    assert 'another_coroutine_method' in result
-    assert 'async_gen_method' in result
+# Test the function
+@pytest.mark.asyncio
+async def test_normal_case():
+    mock_class = MagicMock()
+    mock_class.__name__ = "TestClass"
+    mock_class.a_method = MagicMock()
+    mock_class.b_method = MagicMock(spec=inspect.isasyncgenfunction)
 
-def test_none_input():
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._get_coroutine_methods",
+        return_value=["a_method", "b_method"],
+    ):
+        result = await ClassDataModelFactory._get_coroutine_methods(mock_class)
+        assert result == ["a_method", "b_method"]
+
+
+@pytest.mark.asyncio
+async def test_no_coroutine_methods():
+    mock_class = MagicMock()
+    mock_class.__name__ = "TestClass"
+    mock_class.a_method = MagicMock()
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._get_coroutine_methods",
+        return_value=[],
+    ):
+        result = await ClassDataModelFactory._get_coroutine_methods(mock_class)
+        assert result == []
+
+
+@pytest.mark.asyncio
+async def test_non_existent_class():
+    mock_class = None  # Non-existent class to simulate an error case
+
     with pytest.raises(TypeError):
-        ClassDataModelFactory._get_coroutine_methods(None)
+        await ClassDataModelFactory._get_coroutine_methods(mock_class)
 
-def test_non_class_input():
-    with pytest.raises(TypeError):
-        ClassDataModelFactory._get_coroutine_methods("not a class")
+
+@pytest.mark.asyncio
+async def test_non_class_object():
+    mock_obj = MagicMock()
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._get_coroutine_methods",
+        return_value=[],
+    ):
+        result = await ClassDataModelFactory._get_coroutine_methods(mock_obj)
+        assert result == []

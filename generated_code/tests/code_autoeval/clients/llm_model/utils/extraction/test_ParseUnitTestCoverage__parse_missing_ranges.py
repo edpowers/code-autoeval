@@ -1,7 +1,4 @@
 from typing import List, Tuple
-from unittest.mock import patch
-
-import pytest
 
 
 class ParseUnitTestCoverage:
@@ -18,39 +15,44 @@ class ParseUnitTestCoverage:
             else:
                 line_num = int(range_str)
                 parsed_ranges.append((line_num, line_num))
+
         return parsed_ranges
 
-##################################################
-# TESTS
-##################################################
+from unittest.mock import patch
 
-@patch("code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage.__init__", return_value=None)
-def test_normal_case(mock_init):
-    parser = ParseUnitTestCoverage("data")
+import pytest
+
+from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import \
+    ParseUnitTestCoverage
+
+
+@pytest.fixture
+def parse_unit_test_coverage():
+    return ParseUnitTestCoverage(None)
+
+def test_normal_case(parse_unit_test_coverage):
     missing_ranges = "1, 3-5, 7"
     expected_output = [(1, 1), (3, 5), (7, 7)]
-    assert parser._parse_missing_ranges(missing_ranges) == expected_output
+    assert parse_unit_test_coverage._parse_missing_ranges(missing_ranges) == expected_output
 
-def test_single_line():
-    missing_ranges = "8"
-    expected_output = [(8, 8)]
-    parser = ParseUnitTestCoverage("data")
-    assert parser._parse_missing_ranges(missing_ranges) == expected_output
+def test_single_line(parse_unit_test_coverage):
+    missing_ranges = "2"
+    expected_output = [(2, 2)]
+    assert parse_unit_test_coverage._parse_missing_ranges(missing_ranges) == expected_output
 
-def test_empty_string():
+def test_empty_input(parse_unit_test_coverage):
     missing_ranges = ""
     expected_output = []
-    parser = ParseUnitTestCoverage("data")
-    assert parser._parse_missing_ranges(missing_ranges) == expected_output
+    assert parse_unit_test_coverage._parse_missing_ranges(missing_ranges) == expected_output
 
-def test_invalid_range():
-    missing_ranges = "10-abc, 12"
+def test_invalid_range(parse_unit_test_coverage):
+    missing_ranges = "1-3-5"
     with pytest.raises(ValueError):
-        parser = ParseUnitTestCoverage("data")
-        parser._parse_missing_ranges(missing_ranges)
+        parse_unit_test_coverage._parse_missing_ranges(missing_ranges)
 
-def test_multiple_ranges():
-    missing_ranges = "20-25, 30, 40-45"
-    expected_output = [(20, 25), (30, 30), (40, 45)]
-    parser = ParseUnitTestCoverage("data")
-    assert parser._parse_missing_ranges(missing_ranges) == expected_output
+def test_non_integer_input(parse_unit_test_coverage):
+    missing_ranges = "1, 2a, 3-4"
+    with pytest.raises(ValueError):
+        parse_unit_test_coverage._parse_missing_ranges(missing_ranges)    missing_ranges = "1, 2a, 3-4"
+    with pytest.raises(ValueError):
+        parse_unit_test_coverage._parse_missing_ranges(missing_ranges)

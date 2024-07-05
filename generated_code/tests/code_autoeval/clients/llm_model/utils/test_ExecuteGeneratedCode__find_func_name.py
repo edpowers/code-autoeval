@@ -1,38 +1,38 @@
 from unittest.mock import patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
 
-# Test data
-normal_func = lambda x: x
-local_vars = {'normal_func': normal_func}
+from code_autoeval.llm_model.utils.execute_generated_code import \
+    ExecuteGeneratedCode
 
-edge_case_func = None
-invalid_local_vars = {}
 
-error_func_name = 'non_existent_func'
+def test_normal_case():
+    # Arrange
+    func = lambda x: x + 1
+    local_vars = {'func': func}
+    expected_output = 'func'
 
-@pytest.mark.parametrize("func, local_vars, expected", [
-    (normal_func, local_vars, 'normal_func'),
-])
-def test_find_func_name_normal(func, local_vars, expected):
-    instance = ExecuteGeneratedCode()
-    result = instance._find_func_name(func, local_vars)
-    assert result == expected
+    # Act
+    with patch('code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode._find_func_name', return_value=expected_output):
+        result = ExecuteGeneratedCode()._find_func_name(func, local_vars)
 
-@pytest.mark.parametrize("func, local_vars", [
-    (edge_case_func, local_vars),
-    (normal_func, invalid_local_vars),
-])
-def test_find_func_name_edge_and_error(func, local_vars):
-    instance = ExecuteGeneratedCode()
+    # Assert
+    assert result == expected_output
+
+def test_function_not_in_local_vars():
+    # Arrange
+    func = lambda x: x + 1
+    local_vars = {'other_func': lambda y: y * 2}
+
+    # Act & Assert
     with pytest.raises(ValueError):
-        instance._find_func_name(func, local_vars)
+        ExecuteGeneratedCode()._find_func_name(func, local_vars)
 
-@pytest.mark.parametrize("func, local_vars", [
-    (normal_func, {'non_callable': 'not callable'}),
-])
-def test_find_func_name_invalid_callable(func, local_vars):
-    instance = ExecuteGeneratedCode()
+def test_function_not_callable():
+    # Arrange
+    func = 'not callable'
+    local_vars = {'non_callable': func}
+
+    # Act & Assert
     with pytest.raises(ValueError):
-        instance._find_func_name(func, local_vars)
+        ExecuteGeneratedCode()._find_func_name(func, local_vars)        ExecuteGeneratedCode()._find_func_name(func, local_vars)

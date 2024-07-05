@@ -1,57 +1,79 @@
+# Updated Implementation of GenerateFakeData.figure_out_model_response_for_faker function.
+from typing import Any, str
+
+
+class GenerateFakeData:
+    def __init__(self, data: Any):
+        self.data = data
+
+    def figure_out_model_response_for_faker(self, response: Any) -> str:
+        """
+        Extract the content from the model's response.
+        """
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, dict):
+            if "response" in response:
+                return response["response"]
+            elif "content" in response:
+                return response["content"]
+        raise ValueError("Unexpected response format from the model.")
+
 from unittest.mock import patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.generate_fake_data import GenerateFakeData
 
-# Analysis of the function:
-# The function is designed to extract content from a model's response, which can be either a string or a dictionary.
-# It checks if the response is a string and returns it directly. If not, it looks for 'response' or 'content' keys in the dictionary.
-# If neither key is found, it raises a ValueError with an error message indicating the unexpected format of the response.
+from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
 
-def test_normal_use_case():
-    # Arrange
+
+@pytest.fixture
+def generate_fake_data():
+    return GenerateFakeData(None)
+
+# Test normal string response
+def test_normal_string_response(generate_fake_data):
     response = "This is a normal string response."
-    
-    # Act
-    result = GenerateFakeData().figure_out_model_response_for_faker(response)
-    
-    # Assert
-    assert result == response, f"Expected {response}, but got {result}"
+    result = generate_fake_data.figure_out_model_response_for_faker(response)
+    assert result == response
 
-def test_dict_with_response_key():
-    # Arrange
-    response = {"response": "This is a dictionary response with 'response' key."}
-    
-    # Act
-    result = GenerateFakeData().figure_out_model_response_for_faker(response)
-    
-    # Assert
-    assert result == response["response"], f"Expected {response['response']}, but got {result}"
+# Test dictionary with 'response' key
+def test_dict_with_response_key(generate_fake_data):
+    response = {"response": "This is a response from the model."}
+    result = generate_fake_data.figure_out_model_response_for_faker(response)
+    assert result == response["response"]
 
-def test_dict_with_content_key():
-    # Arrange
-    response = {"content": "This is a dictionary response with 'content' key."}
-    
-    # Act
-    result = GenerateFakeData().figure_out_model_response_for_faker(response)
-    
-    # Assert
-    assert result == response["content"], f"Expected {response['content']}, but got {result}"
+# Test dictionary with 'content' key
+def test_dict_with_content_key(generate_fake_data):
+    response = {"content": "This is content from the model."}
+    result = generate_fake_data.figure_out_model_response_for_faker(response)
+    assert result == response["content"]
 
-def test_unexpected_format():
-    # Arrange
+# Test unexpected format raises ValueError
+def test_unexpected_format_raises_value_error(generate_fake_data):
     response = {"unexpected": "This is an unexpected format."}
-    
-    # Act & Assert
     with pytest.raises(ValueError):
-        GenerateFakeData().figure_out_model_response_for_faker(response)
+        generate_fake_data.figure_out_model_response_for_faker(response)
 
-def test_empty_string():
-    # Arrange
-    response = ""
-    
-    # Act
-    result = GenerateFakeData().figure_out_model_response_for_faker(response)
-    
-    # Assert
-    assert result == response, f"Expected {response}, but got {result}"
+# Test non-dict, non-str input raises TypeError
+def test_non_dict_non_str_input_raises_type_error(generate_fake_data):
+    response = 12345  # Example of a non-string, non-dict input
+    with pytest.raises(TypeError):
+        generate_fake_data.figure_out_model_response_for_faker(response)
+
+# Test None input raises TypeError
+def test_none_input_raises_type_error(generate_fake_data):
+    response = None  # Example of a None input
+    with pytest.raises(TypeError):
+        generate_fake_data.figure_out_model_response_for_faker(response)
+
+# Test empty string input raises ValueError
+def test_empty_string_input_raises_value_error(generate_fake_data):
+    response = ""  # Example of an empty string input
+    with pytest.raises(ValueError):
+        generate_fake_data.figure_out_model_response_for_faker(response)
+
+# Test empty dict input raises ValueError
+def test_empty_dict_input_raises_value_error(generate_fake_data):
+    response = {}  # Example of an empty dict input
+    with pytest.raises(ValueError):
+        generate_fake_data.figure_out_model_response_for_faker(response)        generate_fake_data.figure_out_model_response_for_faker(response)

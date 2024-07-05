@@ -1,45 +1,67 @@
 import inspect
-from unittest.mock import patch
+from typing import Callable
 
 
 class FunctionAttributesFactory:
     @staticmethod
-    def _get_function_signature(func):
+    def _get_function_signature(func: Callable) -> str:
+        """
+        Extract the function signature.
+
+        Args:
+            func (Callable): The callable object whose signature is to be extracted.
+
+        Returns:
+            str: A string representation of the function's signature.
+        """
         return str(inspect.signature(func))
 
-import inspect
+
 from unittest.mock import patch
 
 import pytest
 
+from code_autoeval.llm_model.utils.model.function_attributes import (
+    FunctionAttributesFactory,
+)
 
-# Mocking the FunctionAttributesFactory class and its method
-@patch("code_autoeval.clients.llm_model.utils.model.function_attributes.FunctionAttributesFactory._get_function_signature")
-def test_normal_case(mocked_method):
-    # Arrange: Prepare a normal function for testing
-    def example_func():
+
+# Test function to check if the signature is correctly extracted from a normal function
+def test_get_signature_normal():
+    def example_func(arg1, arg2=None):
         pass
-    
-    # Act: Call the method with the example function
-    FunctionAttributesFactory._get_function_signature(example_func)
-    
-    # Assert: Check that the mock was called with the correct arguments
-    mocked_method.assert_called_once_with(example_func)
 
-def test_edge_case_no_args():
-    # Arrange: Prepare a function without any arguments
-    def example_func():
-        pass
-    
-    # Act: Call the method with the example function
-    result = FunctionAttributesFactory._get_function_signature(example_func)
-    
-    # Assert: Check that the result is as expected for no arguments
-    assert result == "()"
+    with patch(
+        "code_autoeval.llm_model.utils.model.function_attributes.inspect.signature",
+        return_value="(*args, **kwargs)",
+    ):
+        result = FunctionAttributesFactory._get_function_signature(example_func)
+        assert result == "(*args, **kwargs)"
 
-def test_error_condition():
-    # Arrange: Prepare an invalid input (not a callable)
+
+# Test function to check if the signature is correctly extracted from a method
+def test_get_signature_method():
+    class ExampleClass:
+        def example_method(self, arg1, arg2=None):
+            pass
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.function_attributes.inspect.signature",
+        return_value="(self, *args, **kwargs)",
+    ):
+        result = FunctionAttributesFactory._get_function_signature(
+            ExampleClass.example_method
+        )
+        assert result == "(self, *args, **kwargs)"
+
+
+# Test function to check if the signature extraction handles errors gracefully
+def test_get_signature_error():
     with pytest.raises(TypeError):
-        FunctionAttributesFactory._get_function_signature("not a function")
-
-# Add more tests to cover other edge cases and error conditions as needed
+        FunctionAttributesFactory._get_function_signature(
+            None
+        )  # Passing None should raise a TypeErrordef test_get_signature_error():
+    with pytest.raises(TypeError):
+        FunctionAttributesFactory._get_function_signature(
+            None
+        )  # Passing None should raise a TypeError

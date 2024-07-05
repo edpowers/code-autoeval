@@ -1,41 +1,60 @@
-# Analysis of the Function:
-# The function `get_imported_libraries` is a simple getter method that returns the set of imported libraries stored in an instance variable called `imported_libraries`. This method does not take any parameters and directly accesses the instance attribute to return its value. There are no complex operations or dependencies, making it straightforward to test.
+# Expected Output: Implementing the get_imported_libraries method for the ExecuteGeneratedCode class.
 
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
-# Pytest Tests:
 import pytest
-from code_autoeval.clients.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
+
+from code_autoeval.llm_model.utils.execute_generated_code import \
+    ExecuteGeneratedCode
 
 
-@pytest.fixture
+@pytest.fixture(autouse=True)
 def setup():
-    return ExecuteGeneratedCode()
+    with patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None):
+        yield
 
-def test_get_imported_libraries(setup):
-    # Arrange: Set up the test data and conditions.
-    expected_libraries = set(['library1', 'library2'])
-    with patch('code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.imported_libraries', new=expected_libraries):
-        # Act: Perform the action being tested.
-        result = setup.get_imported_libraries()
-        
-        # Assert: Check that the results are as expected.
-        assert result == expected_libraries
+# Test the get_imported_libraries method
+def test_get_imported_libraries_normal():
+    # Arrange
+    mock_instance = ExecuteGeneratedCode()
+    mock_instance.imported_libraries = {'numpy', 'pandas'}
 
-def test_get_imported_libraries_empty(setup):
-    # Arrange: Set up the test data and conditions.
-    with patch('code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.imported_libraries', new=set()):
-        # Act: Perform the action being tested.
-        result = setup.get_imported_libraries()
-        
-        # Assert: Check that the results are as expected.
-        assert result == set()
+    # Act
+    result = mock_instance.get_imported_libraries()
 
-def test_get_imported_libraries_none(setup):
-    # Arrange: Set up the test data and conditions.
-    with patch('code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.imported_libraries', new=None):
-        # Act: Perform the action being tested.
-        result = setup.get_imported_libraries()
-        
-        # Assert: Check that the results are as expected.
-        assert result is None
+    # Assert
+    assert result == {'numpy', 'pandas'}
+
+def test_get_imported_libraries_empty():
+    # Arrange
+    mock_instance = ExecuteGeneratedCode()
+    mock_instance.imported_libraries = set()
+
+    # Act
+    result = mock_instance.get_imported_libraries()
+
+    # Assert
+    assert result == set()
+
+def test_get_imported_libraries_none():
+    # Arrange
+    mock_instance = ExecuteGeneratedCode()
+    mock_instance.imported_libraries = None
+
+    # Act
+    result = mock_instance.get_imported_libraries()
+
+    # Assert
+    assert result is None
+
+def test_get_imported_libraries_missing():
+    # Arrange
+    mock_instance = ExecuteGeneratedCode()
+    with patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.imported_libraries", new_callable=MagicMock) as mock_imported_libs:
+        mock_imported_libs.__get__ = MagicMock(return_value=None)
+
+    # Act
+    result = mock_instance.get_imported_libraries()
+
+    # Assert
+    assert result is None    assert result is None

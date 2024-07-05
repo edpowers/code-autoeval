@@ -1,16 +1,11 @@
-# Updated Implementation of ValidateRegexes.validate_func_name_in_code function
+from pprint import pprint
+from unittest.mock import patch
+
+import pytest
+
+
 class ValidateRegexes:
     def validate_func_name_in_code(self, code: str, func_name: str) -> None:
-        """
-        Validate that the function name is in the code.
-        
-        Args:
-            code (str): The source code to be validated.
-            func_name (str): The name of the function to check for within the code.
-        
-        Raises:
-            ValueError: If the function name is not found in the provided code.
-        """
         if ".__init__" in func_name:
             func_name = func_name.split(".__init__")[0]
         
@@ -18,44 +13,76 @@ class ValidateRegexes:
         if "." in func_name:
             func_name = func_name.split(".")[-1]
         
-        if not code or func_name not in code:
-            raise ValueError(f"Function name '{func_name}' not found in the provided code.")
+        if func_name not in code:
+            pprint(code)
+            raise ValueError(f"Function name '{func_name}' not found in the formatted code.")
 
+from pprint import pprint
 from unittest.mock import patch
 
 import pytest
-from your_module_path import ValidateRegexes
 
+
+class ValidateRegexes:
+    def validate_func_name_in_code(self, code: str, func_name: str) -> None:
+        if ".__init__" in func_name:
+            func_name = func_name.split(".__init__")[0]
+        
+        # Accomodate for the fact that the function name may be in the form of "class_name.func_name"
+        if "." in func_name:
+            func_name = func_name.split(".")[-1]
+        
+        if func_name not in code:
+            pprint(code)
+            raise ValueError(f"Function name '{func_name}' not found in the formatted code.")
+
+##################################################
+# TESTS
+##################################################
 
 @pytest.fixture
-def validator():
+def validate_regexes():
     return ValidateRegexes()
 
-def test_validate_func_name_in_code_normal(validator):
+def test_validate_func_name_in_code_normal(validate_regexes):
+    # Normal case: function name is in the code
     code = "def my_function():\n    pass"
     func_name = "my_function"
-    validator.validate_func_name_in_code(code, func_name)  # Should not raise an error
+    validate_regexes.validate_func_name_in_code(code, func_name)
+    assert True  # No exception raised
 
-def test_validate_func_name_in_code_missing(validator):
+def test_validate_func_name_in_code_missing(validate_regexes):
+    # Case where function name is not in the code
     code = "def another_function():\n    pass"
     func_name = "my_function"
     with pytest.raises(ValueError):
-        validator.validate_func_name_in_code(code, func_name)  # Should raise ValueError
+        validate_regexes.validate_func_name_in_code(code, func_name)
 
-def test_validate_func_name_in_code_init(validator):
-    code = "class MyClass:\n    def __init__(self):\n        pass"
+def test_validate_func_name_in_code_init(validate_regexes):
+    # Case where function name is part of __init__ method
+    code = "class MyClass:\n    def __init__(self):\n        pass\n"
     func_name = "MyClass.__init__"
-    with pytest.raises(ValueError):
-        validator.validate_func_name_in_code(code, func_name)  # Should raise ValueError
+    validate_regexes.validate_func_name_in_code(code, func_name)
+    assert True  # No exception raised
 
-def test_validate_func_name_in_code_class_method(validator):
-    code = "class MyClass:\n    @staticmethod\n    def my_function():\n        pass"
-    func_name = "my_function"
-    with pytest.raises(ValueError):
-        validator.validate_func_name_in_code(code, func_name)  # Should raise ValueError
+def test_validate_func_name_in_code_class_method(validate_regexes):
+    # Case where function name is a method of a class
+    code = "class MyClass:\n    def my_function():\n        pass"
+    func_name = "MyClass.my_function"
+    validate_regexes.validate_func_name_in_code(code, func_name)
+    assert True  # No exception raised
 
-def test_validate_func_name_in_code_empty(validator):
+def test_validate_func_name_in_code_empty_code(validate_regexes):
+    # Case where code is empty
     code = ""
     func_name = "my_function"
     with pytest.raises(ValueError):
-        validator.validate_func_name_in_code(code, func_name)  # Should raise ValueError
+        validate_regexes.validate_func_name_in_code(code, func_name)
+
+plaintext
+Traceback (most recent call last):
+  File "your_script.py", line XX, in test_validate_func_name_in_code_missing
+    validate_regexes.validate_func_name_in_code(code, func_name)
+  File "your_script.py", line YY, in validate_func_name_in_code
+    raise ValueError(f"Function name '{func_name}' not found in the formatted code.")
+ValueError: Function name 'my_function' not found in the formatted code.

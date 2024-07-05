@@ -1,86 +1,142 @@
-import unittest.mock as mock
 from pathlib import Path
 from typing import Dict, List, Tuple
+from unittest.mock import MagicMock, patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.model.class_data_model import ClassDataModel, ClassDataModelFactory
 
-# Function Analysis:
-# The function `create_from_class_info` processes class information to create instances of `ClassDataModel`.
-# It iterates over a dictionary containing file paths and lists of tuples with class names, import paths, and function names.
-# For each class, it imports the class, retrieves its attributes, methods, etc., and creates a `ClassDataModel` instance.
-# The function handles potential errors by printing error messages but continues processing other classes.
+from code_autoeval.llm_model.utils.model.class_data_model import (
+    ClassDataModel,
+    ClassDataModelFactory,
+)
 
-def test_create_from_class_info_normal():
+
+def test_create_from_class_info():
     # Arrange
     class_info = {
-        "file1.py": [("ClassName1", "path.to.Class", ["method1"])],
-        "file2.py": [("ClassName2", "path.to.Class", ["method2"])]
+        "file1.py": [("ClassName1", "module.ClassName1", ["method1", "method2"])],
+        "file2.py": [("ClassName2", "module.ClassName2", ["method3"])],
     }
     factory = ClassDataModelFactory()
-    factory._import_class = mock.Mock(return_value=None)
-    SystemUtils = mock.Mock()
-    SystemUtils.get_class_file_path = mock.Mock(return_value="mocked/path")
-    
-    # Act
-    result = factory.create_from_class_info(class_info)
-    
-    # Assert
-    assert len(result) == 2
-    assert all(isinstance(item, ClassDataModel) for item in result)
+    factory.project_root = Path("/path/to/project")
+
+    # Mock dependencies
+    mock_class1 = MagicMock()
+    mock_class1.__name__ = "ClassName1"
+    mock_class2 = MagicMock()
+    mock_class2.__name__ = "ClassName2"
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._import_class",
+        side_effect=[mock_class1, mock_class2],
+    ):
+        with patch(
+            "code_autoeval.llm_model.utils.model.class_data_model.SystemUtils.get_class_file_path",
+            return_value="/path/to/module",
+        ):
+            # Act
+            result = factory.create_from_class_info(class_info)
+
+            # Assert
+            assert len(result) == 2
+            assert all(isinstance(model, ClassDataModel) for model in result)
+            assert result[0].class_name == "ClassName1"
+            assert result[1].class_name == "ClassName2"
+
 
 def test_create_from_class_info_no_functions():
     # Arrange
-    class_info = {
-        "file1.py": [("ClassName1", "path.to.Class", [])]
-    }
+    class_info = {"file1.py": [("ClassName1", "module.ClassName1", [])]}
     factory = ClassDataModelFactory()
-    factory._import_class = mock.Mock(return_value=None)
-    
-    # Act
-    result = factory.create_from_class_info(class_info)
-    
-    # Assert
-    assert len(result) == 0
+    factory.project_root = Path("/path/to/project")
+
+    # Mock dependencies
+    mock_class1 = MagicMock()
+    mock_class1.__name__ = "ClassName1"
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._import_class",
+        return_value=mock_class1,
+    ):
+        # Act
+        result = factory.create_from_class_info(class_info)
+
+        # Assert
+        assert len(result) == 0
+
 
 def test_create_from_class_info_error():
     # Arrange
     class_info = {
-        "file1.py": [("ClassName1", "non.existent.path", ["method1"])]
+        "file1.py": [
+            ("ClassName1", "module.ClassName1", ["method1"]),
+            ("ErrorClass", "module.ErrorClass", ["method2"]),
+        ]
     }
     factory = ClassDataModelFactory()
-    factory._import_class = mock.Mock(side_effect=Exception("Import error"))
-    
-    # Act
-    result = factory.create_from_class_info(class_info)
-    
-    # Assert
-    assert len(result) == 0
+    factory.project_root = Path("/path/to/project")
 
-def test_create_from_class_info_mocking():
-    # Arrange
-    class_info = {
-        "file1.py": [("ClassName1", "path.to.Class", ["method1"])]
-    }
-    factory = ClassDataModelFactory()
-    with mock.patch("code_autoeval.clients.llm_model.utils.model.class_data_model.SystemUtils") as SystemUtils_mock:
-        SystemUtils_mock.get_class_file_path.return_value = "mocked/path"
-        factory._import_class = mock.Mock(return_value=None)
-        
-    # Act
-    result = factory.create_from_class_info(class_info)
-    
-    # Assert
-    assert len(result) == 1
-    assert isinstance(result[0], ClassDataModel)
+    # Mock dependencies
+    mock_class1 = MagicMock()
+    mock_class1.__name__ = "ClassName1"
+    error_mock = MagicMock(side_effect=Exception("Test Error"))
 
-def test_create_from_class_info_empty_input():
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._import_class",
+        return_value=mock_class1,
+    ):
+        with patch(
+            "code_autoeval.llm_model.utils.model.class_data_model.SystemUtils.get_class_file_path",
+            return_value="/path/to/module",
+        ):
+            with patch(
+                "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._get_base_classes",
+                side_effect=error_mock,
+            ):
+                # Act
+                result = factory.create_from_class_info(class_info)
+
+                # Assert
+                assert len(result) == 1
+                assert result[0].class_name == "ClassName1"
+
+
+def test_create_from_class_info_no_classes():
     # Arrange
     class_info = {}
     factory = ClassDataModelFactory()
-    
+    factory.project_root = Path("/path/to/project")
+
     # Act
     result = factory.create_from_class_info(class_info)
-    
+
     # Assert
     assert len(result) == 0
+
+
+def test_create_from_class_info_mocked():
+    # Arrange
+    class_info = {"file1.py": [("ClassName1", "module.ClassName1", ["method1"])]}
+    factory = ClassDataModelFactory()
+    factory.project_root = Path("/path/to/project")
+
+    # Mock dependencies
+    mock_class1 = MagicMock()
+    mock_class1.__name__ = "ClassName1"
+
+    with patch(
+        "code_autoeval.llm_model.utils.model.class_data_model.ClassDataModelFactory._import_class",
+        return_value=mock_class1,
+    ):
+        with patch(
+            "code_autoeval.llm_model.utils.model.class_data_model.SystemUtils.get_class_file_path",
+            return_value="/path/to/module",
+        ):
+            # Act
+            result = factory.create_from_class_info(class_info)
+
+            # Assert
+            assert len(result) == 1
+            assert result[0].class_name == "ClassName1"
+            # Assert
+            assert len(result) == 1
+            assert result[0].class_name == "ClassName1"

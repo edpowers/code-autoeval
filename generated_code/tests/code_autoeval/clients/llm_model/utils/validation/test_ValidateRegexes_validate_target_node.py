@@ -1,58 +1,52 @@
-from typing import Any
+from typing import Any, Callable
+
+
+class ValidateRegexes:
+    def __init__(self, *args, **kwargs):
+        pass
+
+    async def validate_target_node(self, target_node: Any, func_name: str) -> None:
+        if target_node is None:
+            raise ValueError(f"Target node not found for function {func_name}")
+
 from unittest.mock import patch
 
 import pytest
 
+from code_autoeval.llm_model.utils.validation.validate_regexes import \
+    ValidateRegexes
 
-class ValidateRegexes:
-    def validate_target_node(self, target_node: Any, func_name: str) -> None:
-        if target_node is None:
-            raise ValueError(f"Target node not found for function {func_name}")
 
-# Test the function
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes")
-def test_normal_use_case(mock_validate_regexes):
-    mock_instance = mock_validate_regexes.return_value
-    target_node = "valid_target"
-    func_name = "example_function"
-    
-    # Act
-    mock_instance.validate_target_node(target_node, func_name)
-    
-    # Assert no exception is raised
-    assert True
+@pytest.fixture
+def validate_regexes():
+    return ValidateRegexes()
 
-def test_none_target_node():
-    target_node = None
-    func_name = "example_function"
-    
+@pytest.mark.asyncio
+async def test_validate_target_node_normal(validate_regexes):
+    # Test normal use case where target_node is not None
+    await validate_regexes.validate_target_node("valid_node", "test_function")
+    assert True  # No exception should be raised
+
+@pytest.mark.asyncio
+async def test_validate_target_node_none(validate_regexes):
+    # Test error condition where target_node is None
     with pytest.raises(ValueError):
-        ValidateRegexes().validate_target_node(target_node, func_name)
+        await validate_regexes.validate_target_node(None, "test_function")
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes")
-def test_mocked_instance(mock_validate_regexes):
-    mock_instance = mock_validate_regexes.return_value
-    target_node = "valid_target"
-    func_name = "example_function"
-    
-    # Act
-    mock_instance.validate_target_node(target_node, func_name)
-    
-    # Assert no exception is raised
-    assert True
-
-def test_empty_func_name():
-    target_node = "valid_target"
-    func_name = ""
-    
+@pytest.mark.asyncio
+async def test_validate_target_node_empty_string(validate_regexes):
+    # Test edge case where target_node is an empty string
     with pytest.raises(ValueError):
-        ValidateRegexes().validate_target_node(target_node, func_name)
+        await validate_regexes.validate_target_node("", "test_function")
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes")
-def test_mocked_instance_empty_func_name(mock_validate_regexes):
-    mock_instance = mock_validate_regexes.return_value
-    target_node = "valid_target"
-    func_name = ""
-    
+@pytest.mark.asyncio
+async def test_validate_target_node_whitespace(validate_regexes):
+    # Test edge case where target_node is only whitespace
     with pytest.raises(ValueError):
-        mock_instance.validate_target_node(target_node, func_name)
+        await validate_regexes.validate_target_node("   ", "test_function")
+
+@pytest.mark.asyncio
+async def test_validate_target_node_zero(validate_regexes):
+    # Test edge case where target_node is zero (0)
+    with pytest.raises(ValueError):
+        await validate_regexes.validate_target_node(0, "test_function")        await validate_regexes.validate_target_node(0, "test_function")

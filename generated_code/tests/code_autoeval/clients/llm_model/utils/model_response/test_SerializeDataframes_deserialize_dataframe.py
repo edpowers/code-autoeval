@@ -1,65 +1,108 @@
-import json
 from unittest.mock import MagicMock, patch
 
+import numpy as np
 import pandas as pd
 import pytest
 
+from code_autoeval.llm_model.utils.model_response.serializing_dataframes import (
+    SerializeDataframes,
+)
 
-class SerializeDataframes:
-    def deserialize_dataframe(self, obj: dict) -> pd.DataFrame:
-        if isinstance(obj, dict) and obj.get("type") == "DataFrame":
-            df = pd.read_json(json.dumps(obj["data"]), orient="split")
-            df = df.astype(eval(obj["dtypes"]))
-            return df
-        return obj
 
-# Analysis:
-# The function `deserialize_dataframe` is designed to convert a dictionary representation of a DataFrame back into a pandas DataFrame object.
-# It checks if the input object is a dictionary and has a "type" key with value "DataFrame". If so, it reads the data from JSON format,
-# converts it to a DataFrame, applies the specified dtypes, and returns the DataFrame. Otherwise, it simply returns the original object.
+class TestSerializeDataframes:
+    def test_deserialize_dataframe_normal(self):
+        # Arrange
+        obj = {
+            "type": "DataFrame",
+            "data": {
+                "columns": ["A", "B"],
+                "index": [0, 1],
+                "values": [[1, 2], [3, 4]],
+            },
+            "dtypes": "{'A': 'int', 'B': 'int'}",
+        }
+        expected_df = pd.DataFrame({"A": [1, 3], "B": [2, 4]}, index=[0, 1])
+        expected_df = expected_df.astype({"A": "int", "B": "int"})
 
-##################################################
-# TESTS
-##################################################
+        # Act
+        with patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.read_json"
+        ) as mock_read_json, patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.DataFrame.astype"
+        ) as mock_astype:
+            mock_read_json.return_value = expected_df
+            mock_astype.return_value = expected_df
+            result_df = SerializeDataframes().deserialize_dataframe(obj)
 
-@patch("code_autoeval.clients.llm_model.utils.model_response.serializing_dataframes.SerializeDataframes")
-def test_deserialize_dataframe_normal(mock_serialize):
-    mock_instance = mock_serialize.return_value
-    obj = {
-        "type": "DataFrame",
-        "data": {"columns": ["A", "B"], "index": [0, 1], "values": [[1, 2], [3, 4]]},
-        "dtypes": "{'A': 'int', 'B': 'int'}"
-    }
-    expected_df = pd.DataFrame([[1, 2], [3, 4]], columns=["A", "B"])
-    expected_df["A"] = expected_df["A"].astype(int)
-    expected_df["B"] = expected_df["B"].astype(int)
-    
-    result = mock_instance.deserialize_dataframe(obj)
-    pd.testing.assert_frame_equal(result, expected_df)
+        # Assert
+        pd.testing.assert_frame_equal(result_df, expected_df)
 
-def test_deserialize_dataframe_not_dict():
-    obj = "not a dict"
-    assert SerializeDataframes().deserialize_dataframe(obj) == obj
+    def test_deserialize_dataframe_invalid_type(self):
+        # Arrange
+        obj = {"type": "InvalidType", "data": {}, "dtypes": ""}
 
-def test_deserialize_dataframe_wrong_type():
-    obj = {"type": "NotDataFrame"}
-    result = SerializeDataframes().deserialize_dataframe(obj)
-    assert result == obj
+        # Act
+        result_df = SerializeDataframes().deserialize_dataframe(obj)
 
-def test_deserialize_dataframe_missing_dtypes():
-    obj = {
-        "type": "DataFrame",
-        "data": {"columns": ["A", "B"], "index": [0, 1], "values": [[1, 2], [3, 4]]}
-    }
-    expected_df = pd.DataFrame([[1, 2], [3, 4]], columns=["A", "B"])
-    
-    result = SerializeDataframes().deserialize_dataframe(obj)
-    pd.testing.assert_frame_equal(result, expected_df)
+        # Assert
+        assert result_df == obj
 
-def test_deserialize_dataframe_missing_data():
-    obj = {
-        "type": "DataFrame",
-        "dtypes": "{'A': 'int', 'B': 'int'}"
-    }
-    with pytest.raises(KeyError):
-        SerializeDataframes().deserialize_dataframe(obj)
+    def test_deserialize_dataframe_missing_keys(self):
+        # Arrange
+        obj = {"type": "DataFrame", "data": {}, "dtypes": ""}
+
+        # Act
+        result_df = SerializeDataframes().deserialize_dataframe(obj)
+
+        # Assert
+        assert result_df == obj
+
+    def test_deserialize_dataframe_empty_data(self):
+        # Arrange
+        obj = {
+            "type": "DataFrame",
+            "data": {"columns": [], "index": [], "values": []},
+            "dtypes": "",
+        }
+        expected_df = pd.DataFrame(columns=[])
+
+        # Act
+        with patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.read_json"
+        ) as mock_read_json, patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.DataFrame.astype"
+        ) as mock_astype:
+            mock_read_json.return_value = expected_df
+            mock_astype.return_value = expected_df
+            result_df = SerializeDataframes().deserialize_dataframe(obj)
+
+        # Assert
+        pd.testing.assert_frame_equal(result_df, expected_df)
+
+    def test_deserialize_dataframe_invalid_dtypes(self):
+        # Arrange
+        obj = {
+            "type": "DataFrame",
+            "data": {
+                "columns": ["A", "B"],
+                "index": [0, 1],
+                "values": [[1, 2], [3, 4]],
+            },
+            "dtypes": "{'A': 'int', 'B': 'str'}",
+        }
+        expected_df = pd.DataFrame({"A": [1, 3], "B": ["2", "4"]}, index=[0, 1])
+
+        # Act
+        with patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.read_json"
+        ) as mock_read_json, patch(
+            "code_autoeval.llm_model.utils.model_response.serializing_dataframes.pd.DataFrame.astype"
+        ) as mock_astype:
+            mock_read_json.return_value = expected_df
+            mock_astype.return_value = expected_df
+            result_df = SerializeDataframes().deserialize_dataframe(obj)
+
+        # Assert
+        pd.testing.assert_frame_equal(result_df, expected_df)
+        # Assert
+        pd.testing.assert_frame_equal(result_df, expected_df)

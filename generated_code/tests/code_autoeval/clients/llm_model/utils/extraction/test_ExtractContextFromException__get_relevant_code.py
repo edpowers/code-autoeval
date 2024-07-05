@@ -7,11 +7,11 @@ def _get_relevant_code(self, code: str, error_line: int, context_lines: int = 3)
         raise ValueError("Input 'error_line' must be a positive integer.")
     if not isinstance(context_lines, int) or context_lines < 0:
         raise ValueError("Input 'context_lines' must be a non-negative integer.")
-    
+
     code_lines = code.split("\n")
     start_line = max(0, error_line - context_lines - 1)
     end_line = min(len(code_lines), error_line + context_lines)
-    
+
     relevant_lines = code_lines[start_line:end_line]
     numbered_lines = [f"{i+start_line+1}: {line}" for i, line in enumerate(relevant_lines)]
     return "\n".join(numbered_lines)
@@ -21,7 +21,7 @@ from unittest.mock import patch
 import pytest
 
 
-@patch("code_autoeval.clients.llm_model.utils.extraction.extract_context_from_exception.ExtractContextFromException._get_relevant_code")
+@patch("code_autoeval.llm_model.utils.extraction.extract_context_from_exception.ExtractContextFromException._get_relevant_code")
 def test_normal_case(mock_get_relevant_code):
     mock_get_relevant_code.return_value = "1: print('Hello, World!')"
     code = "print('Hello, World!')"

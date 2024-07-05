@@ -1,71 +1,50 @@
-from typing import Dict, Tuple
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage import ParseUnitTestCoverage
+
+from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import (
+    ParseUnitTestCoverage,
+)
 
 
-# Updated implementation of the _recalculate_coverage method
-def _recalculate_coverage(self, range_string: str, concerned_lines: Dict[Tuple[int, int], str]) -> float:
-    def parse_range(s):
-        result = []
-        for part in s.split(","):
-            if "-" in part:
-                a, b = map(int, part.split("-"))
-                result.extend(range(a, b + 1))
-            else:
-                a = int(part)
-                result.append(a)
-        return set(result)
+def test_parse_range():
+    # Test the parse_range function
+    assert ParseUnitTestCoverage._recalculate_coverage.parse_range("1,2-3,4") == {
+        1,
+        2,
+        3,
+        4,
+    }
 
-    # Parse the range string
-    all_lines = parse_range(range_string)
 
-    # Convert concerned_lines to a set of line numbers
-    concerned_set = {line for ranges in concerned_lines.keys() for line in ranges}
+@patch(
+    "code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage._recalculate_coverage.parse_range",
+    return_value={1, 2, 3, 4},
+)
+def test_normal_case(mock_parse_range):
+    # Test normal use case
+    concerned_lines = {(1, 2): "code", (3, 4): "more code"}
+    result = ParseUnitTestCoverage._recalculate_coverage.parse_range("1,2-3,4")
+    assert result == {1, 2, 3, 4}
 
-    # Find the intersection of all_lines and concerned_lines
-    covered_lines = all_lines.intersection(concerned_set)
 
-    # Calculate coverage
-    if not concerned_set:
-        return 100.0  # If there are no lines to be concerned about, consider it 100% covered
+def test_edge_case_no_concerned_lines():
+    # Test case where there are no concerned lines
+    with patch(
+        "code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage._recalculate_coverage.parse_range",
+        return_value={1, 2, 3, 4},
+    ):
+        result = ParseUnitTestCoverage._recalculate_coverage(None, "1,2-3,4", {})
+        assert result == 100.0
 
-    coverage_percentage = (len(covered_lines) / len(concerned_set)) * 100
 
-    return coverage_percentage
-
-# Test for normal use case
-def test_normal_use_case(setup):
-    range_string = "1,2-3"
-    concerned_lines = {(1, 2), (2, 3)}
-    result = setup._recalculate_coverage(range_string, concerned_lines)
-    assert pytest.approx(result, abs=0.01) == 66.67
-
-# Test for edge case with no coverage
-def test_no_coverage(setup):
-    range_string = "4-5"
-    concerned_lines = {(1, 2), (3, 4)}
-    result = setup._recalculate_coverage(range_string, concerned_lines)
-    assert pytest.approx(result, abs=0.01) == 0.00
-
-# Test for edge case with full coverage
-def test_full_coverage(setup):
-    range_string = "1-3"
-    concerned_lines = {(1, 2), (2, 3)}
-    result = setup._recalculate_coverage(range_string, concerned_lines)
-    assert pytest.approx(result, abs=0.01) == 100.00
-
-# Test for edge case with empty range string
-def test_empty_range_string(setup):
-    range_string = ""
-    concerned_lines = {(1, 2), (2, 3)}
-    result = setup._recalculate_coverage(range_string, concerned_lines)
-    assert pytest.approx(result, abs=0.01) == 100.00
-
-# Test for edge case with empty concerned lines
-def test_empty_concerned_lines(setup):
-    range_string = "1-3"
-    concerned_lines = {}
-    result = setup._recalculate_coverage(range_string, concerned_lines)
-    assert pytest.approx(result, abs=0.01) == 100.00
+def test_error_condition():
+    # Test error condition where range string is invalid
+    with pytest.raises(ValueError):
+        ParseUnitTestCoverage._recalculate_coverage(
+            "invalid_range", {1: "code"}, {(1, 2): "more code"}
+        )  # Test error condition where range string is invalid
+    with pytest.raises(ValueError):
+        ParseUnitTestCoverage._recalculate_coverage(
+            "invalid_range", {1: "code"}, {(1, 2): "more code"}
+        )

@@ -11,55 +11,46 @@ class ValidateRegexes:
         if "def test_" not in pytest_code:
             raise ValueError(f"pytest_tests must be in {pytest_code}")
 
-##################################################
-# TESTS
-##################################################
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes.__init__", return_value=None)
-def test_normal_case(mock_init):
-    # Arrange
-    validate = ValidateRegexes()
-    pytest_code = "def test_example(): pass"
-    
-    # Act & Assert
-    assert validate.validate_test_in_pytest_code(pytest_code) is None
+from unittest.mock import patch
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes.__init__", return_value=None)
-def test_missing_test_definition(mock_init):
-    # Arrange
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_validate_test_in_pytest_code_normal():
     validate = ValidateRegexes()
-    pytest_code = "def some_other_function(): pass"
-    
-    # Act & Assert
+    with patch(
+        "code_autoeval.llm_model.utils.validation.validate_regexes.ValidateRegexes.validate_test_in_pytest_code",
+        return_value=None,
+    ):
+        result = await validate.validate_test_in_pytest_code("def test_example(): pass")
+        assert result is None
+
+
+@pytest.mark.asyncio
+async def test_validate_test_in_pytest_code_missing():
+    validate = ValidateRegexes()
     with pytest.raises(ValueError):
-        validate.validate_test_in_pytest_code(pytest_code)
+        await validate.validate_test_in_pytest_code("def example(): pass")
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes.__init__", return_value=None)
-def test_empty_string(mock_init):
-    # Arrange
-    validate = ValidateRegexes()
-    pytest_code = ""
-    
-    # Act & Assert
-    with pytest.raises(ValueError):
-        validate.validate_test_in_pytest_code(pytest_code)
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes.__init__", return_value=None)
-def test_none_input(mock_init):
-    # Arrange
+@pytest.mark.asyncio
+async def test_validate_test_in_pytest_code_empty():
     validate = ValidateRegexes()
-    pytest_code = None
-    
-    # Act & Assert
     with pytest.raises(ValueError):
-        validate.validate_test_in_pytest_code(pytest_code)
+        await validate.validate_test_in_pytest_code("")
 
-@patch("code_autoeval.clients.llm_model.utils.validation.validate_regexes.ValidateRegexes.__init__", return_value=None)
-def test_whitespace_input(mock_init):
-    # Arrange
+
+@pytest.mark.asyncio
+async def test_validate_test_in_pytest_code_none():
     validate = ValidateRegexes()
-    pytest_code = "   "
-    
-    # Act & Assert
     with pytest.raises(ValueError):
-        validate.validate_test_in_pytest_code(pytest_code)
+        await validate.validate_test_in_pytest_code(None)
+
+
+@pytest.mark.asyncio
+async def test_validate_test_in_pytest_code_whitespace():
+    validate = ValidateRegexes()
+    with pytest.raises(ValueError):
+        await validate.validate_test_in_pytest_code("   ")

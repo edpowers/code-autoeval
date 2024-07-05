@@ -2,17 +2,15 @@ import re
 from typing import Optional, Tuple
 
 
-class ParseUnitTestCoverage:
-    def _parse_coverage_output(self, coverage_output: str) -> Optional[Tuple[str, str]]:
-        """
-        Parse the coverage output to extract file path and missing ranges.
-        
-        This method splits the output line by line and looks for the percentage and missing ranges.
-        """
-        if not coverage_output:
-            return None
+class CoverageParsingError(Exception):
+    pass
 
-        lines = coverage_output.split("\n")
+class ParseUnitTestCoverage:
+    def __init__(self, data: str):
+        self.data = data
+
+    async def _parse_coverage_output(self) -> Optional[Tuple[str, str]]:
+        lines = self.data.split("\n")
 
         for line in lines:
             if ".py" in line and "%" in line:
@@ -25,7 +23,7 @@ class ParseUnitTestCoverage:
                         file_path = file_path_match[1]
                         return file_path, missing_ranges
 
-        raise Exception("Failed to parse coverage output.")
+        raise CoverageParsingError("Failed to parse coverage output - likely due to error running tests.")
 
 from unittest.mock import patch
 
@@ -33,37 +31,42 @@ import pytest
 
 
 @pytest.fixture
-def parse_unit_test_coverage():
-    return ParseUnitTestCoverage()
-
-def test_parse_coverage_output_normal(parse_unit_test_coverage):
-    coverage_output = """
-        /path/to/file1.py    23%   lorem ipsum...
-        /path/to/file2.py    45%   lorem ipsum...
+def sample_coverage_output():
+    return """
+        example/path/to/file.py    10%   loklak.py:234-256, mello.py:12-34
+        another/example.py          90%   test_module.py:1-50
     """
-    result = parse_unit_test_coverage._parse_coverage_output(coverage_output)
-    assert isinstance(result, tuple) and len(result) == 2
-    assert isinstance(result[0], str) and result[0].endswith('.py')
-    assert isinstance(result[1], str)
 
-def test_parse_coverage_output_empty(parse_unit_test_coverage):
-    coverage_output = ""
-    with pytest.raises(Exception):
-        parse_unit_test_coverage._parse_coverage_output(coverage_output)
+@pytest.mark.asyncio
+async def test_parse_coverage_output(sample_coverage_output):
+    parse_unit_test = ParseUnitTestCoverage(sample_coverage_output)
+    result = await parse_unit_test._parse_coverage_output()
+    assert result == ('example/path/to/file.py', 'loklak.py:234-256, mello.py:12-34')
 
-def test_parse_coverage_output_no_match(parse_unit_test_coverage):
-    coverage_output = "No file paths or percentages here."
-    with pytest.raises(Exception):
-        parse_unit_test_coverage._parse_coverage_output(coverage_output)
+@pytest.mark.asyncio
+async def test_no_coverage_info(sample_coverage_output):
+    parse_unit_test = ParseUnitTestCoverage("No coverage information here.")
+    with pytest.raises(CoverageParsingError):
+        await parse_unit_test._parse_coverage_output()
 
-def test_parse_coverage_output_none(parse_unit_test_coverage):
-    coverage_output = None
-    result = parse_unit_test_coverage._parse_coverage_output(coverage_output)
-    assert result is None
+@pytest.mark.asyncio
+async def test_no_py_files():
+    parse_unit_test = ParseUnitTestCoverage("This output does not contain any .py files.")
+    with pytest.raises(CoverageParsingError):
+        await parse_unit_test._parse_coverage_output()
 
-@patch("code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage._parse_coverage_output")
-def test_run_parse_unit_test_cov(mock_parse):
-    mock_parse.return_value = ("/path/to/file.py", "missing ranges")
-    instance = ParseUnitTestCoverage()
-    result = instance.run_parse_unit_test_cov("coverage output")
-    assert result == ("/path/to/file.py", "missing ranges")
+@pytest.mark.asyncio
+async def test_missing_percentage():
+    parse_unit_test = ParseUnitTestCoverage("example/path/to/file.py missing percentage")
+    with pytest.raises(CoverageParsingError):
+        await parse_unit_test._parse_coverage_output()
+
+@pytest.mark.asyncio
+async def test_multiple_files():
+    sample_output = """
+        file1.py 50% loklak.py:234-256, mello.py:12-34
+        file2.py 75% another.py:1-50
+    """
+    parse_unit_test = ParseUnitTestCoverage(sample_output)
+    result = await parse_unit_test._parse_coverage_output()
+    assert result == ('file1.py', 'loklak.py:234-256, mello.py:12-34')

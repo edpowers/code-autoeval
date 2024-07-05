@@ -3,105 +3,76 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Function Analysis:
-# The function reads a file line by line and extracts lines within specified ranges.
-# It optionally filters these ranges based on the presence of a specific function name.
-# It returns a dictionary with tuple keys representing line ranges and corresponding content as values.
-# Edge cases to consider include empty files, non-existent files, invalid ranges, etc.
 
 class ParseUnitTestCoverage:
     def __init__(self, data):
         self.data = data
 
-    async def _find_uncovered_lines(self, file_path: str, parsed_ranges: List[Tuple[int, int]], function_name: Optional[str] = None) -> Dict[Tuple[int, int], str]:
+    async def _find_uncovered_lines(
+        self,
+        file_path: str,
+        parsed_ranges: List[Tuple[int, int]],
+        function_name: Optional[str] = None,
+    ) -> Dict[Tuple[int, int], str]:
         uncovered_lines = {}
+
         with open(file_path, "r") as file:
             lines = file.readlines()
+
         function_bounds = None
         if function_name:
             function_bounds = self._find_function_bounds(file_path, function_name)
+
         for start, end in parsed_ranges:
             if function_bounds:
+                # Only consider ranges that overlap with the function
                 if end < function_bounds[0] or start > function_bounds[1]:
                     continue
+                # Adjust the range to be within the function
                 start = max(start, function_bounds[0])
                 end = min(end, function_bounds[1])
+
             content = "".join(lines[start - 1 : end])
             uncovered_lines[(start, end)] = content.strip()
+
+        # Verify that we found content for each range
         if len(uncovered_lines) != len(parsed_ranges):
             missing_ranges = set(parsed_ranges) - set(uncovered_lines.keys())
             print(f"Warning: Could not find content for ranges: {missing_ranges}")
+
         return uncovered_lines
 
-    def _find_function_bounds(self, file_path: str, function_name: str) -> Optional[Tuple[int, int]]:
-        # Mock implementation for the sake of example. In a real scenario, this would be implemented based on actual logic.
-        return None
+    def _find_function_bounds(
+        self, file_path: str, function_name: str
+    ) -> Optional[Tuple[int, int]]:
+        # This is a placeholder for the actual implementation of finding function bounds.
+        # The actual implementation would depend on how you store and locate functions in the file.
+        pass
 
-##################################################
-# TESTS
-##################################################
 
-@patch("code_autoeval.clients.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage._find_function_bounds", return_value=None)
+# Mocking _find_function_bounds method
+@patch(
+    "code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage.ParseUnitTestCoverage._find_function_bounds",
+    return_value=(1, 10),
+)
 def test_normal_use_case(mock_find_function_bounds):
     # Arrange
-    mock_instance = ParseUnitTestCoverage(MagicMock())
-    file_path = "test_file.txt"
-    parsed_ranges = [(1, 5), (10, 20)]
-    expected_output = {
-        (1, 5): "Line 1",
-        (10, 20): "Line 10"
-    }
-    
+    parse_unit_test_coverage = ParseUnitTestCoverage("data")
+    file_path = "test_file.py"
+    parsed_ranges = [(5, 15), (20, 30)]
+    function_name = "example_function"
+
     # Act
-    result = mock_instance._find_uncovered_lines(file_path, parsed_ranges)
-    
+    result = parse_unit_test_coverage._find_uncovered_lines(
+        file_path, parsed_ranges, function_name
+    )
+
     # Assert
-    assert result == expected_output
-    mock_find_function_bounds.assert_called_once_with(file_path, "mocked_function")
+    assert len(result) == 2
+    assert (5, 15) in result
+    assert (20, 30) in result
+    assert result[(5, 15)] == "line content"
+    assert result[(20, 30)] == "another line content"
 
-def test_edge_case_empty_file():
-    # Arrange
-    mock_instance = ParseUnitTestCoverage(MagicMock())
-    file_path = "test_file.txt"
-    parsed_ranges = [(1, 5)]
-    
-    # Act & Assert
-    with open(file_path, "w") as f:
-        pass
-    with pytest.raises(Exception):
-        mock_instance._find_uncovered_lines(file_path, parsed_ranges)
 
-def test_error_condition_invalid_range():
-    # Arrange
-    mock_instance = ParseUnitTestCoverage(MagicMock())
-    file_path = "test_file.txt"
-    parsed_ranges = [(100, 5)]  # Invalid range (start > end)
-    
-    # Act & Assert
-    with pytest.raises(ValueError):
-        mock_instance._find_uncovered_lines(file_path, parsed_ranges)
-
-def test_edge_case_non_existent_file():
-    # Arrange
-    mock_instance = ParseUnitTestCoverage(MagicMock())
-    file_path = "nonexistent.txt"
-    parsed_ranges = [(1, 5)]
-    
-    # Act & Assert
-    with pytest.raises(FileNotFoundError):
-        mock_instance._find_uncovered_lines(file_path, parsed_ranges)
-
-def test_edge_case_no_function_bounds():
-    # Arrange
-    mock_instance = ParseUnitTestCoverage(MagicMock())
-    file_path = "test_file.txt"
-    parsed_ranges = [(1, 5)]
-    expected_output = {
-        (1, 5): "Line 1"
-    }
-    
-    # Act with no function name provided
-    result = mock_instance._find_uncovered_lines(file_path, parsed_ranges)
-    
-    # Assert
-    assert result == expected_output
+# Add more test functions to cover edge cases and error conditions as needed.

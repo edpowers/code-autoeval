@@ -32,14 +32,14 @@ import nest_asyncio
 from dotenv import load_dotenv
 from pydantic import create_model
 
-from code_autoeval.clients.llm_model.utils.logging_statements.common_logging_statements import (
+from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import (
     CommonLoggingStatements,
 )
 
 print(CommonLoggingStatements)
 
-from code_autoeval.clients.llm_model.llm_model import LLMModel
-from code_autoeval.clients.llm_model.utils.model.class_data_model import (
+from code_autoeval.llm_model.llm_model import LLMModel
+from code_autoeval.llm_model.utils.model.class_data_model import (
     ClassDataModel,
     ClassDataModelFactory,
 )

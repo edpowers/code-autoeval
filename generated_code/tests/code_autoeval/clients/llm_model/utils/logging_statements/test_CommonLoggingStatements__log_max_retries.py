@@ -1,69 +1,53 @@
+# Updated Implementation of CommonLoggingStatements._log_max_retries function
+class CommonLoggingStatements:
+    def __init__(self, data):
+        self.data = data
+
+    async def _log_max_retries(self, max_retries: int) -> None:
+        if not isinstance(max_retries, int) or max_retries < 0:
+            raise ValueError("max_retries must be a non-negative integer")
+
+        if self.data.verbose:
+            print(f"Failed to generate correct code with 100% coverage after {max_retries} attempts.")
+
 from unittest.mock import patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.logging_statements.common_logging_statements import CommonLoggingStatements
+from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import CommonLoggingStatements
 
-# Analysis of the function:
-# The function logs a message if it fails to generate correct code with 100% coverage after a certain number of retries.
-# It uses print for logging, which is synchronous and not ideal in an async context. However, since this is explicitly stated as a non-async coroutine, we'll proceed accordingly.
 
-@patch("code_autoeval.clients.llm_model.utils.logging_statements.common_logging_statements.CommonLoggingStatements._log_max_retries")
-def test_normal_use(mock_log):
-    # Arrange
-    instance = CommonLoggingStatements()
-    max_retries = 5
-    
-    # Act
-    instance._log_max_retries(max_retries)
-    
-    # Assert
-    mock_log.assert_called_once_with(max_retries)
+@pytest.fixture
+def setup_common_logging():
+    return CommonLoggingStatements(data={"verbose": True})
 
-def test_edge_case_zero_retries():
-    # Arrange
-    instance = CommonLoggingStatements()
-    max_retries = 0
-    
-    # Act
+@pytest.mark.asyncio
+async def test_log_max_retries_normal_case(setup_common_logging):
     with patch('builtins.print') as mock_print:
-        instance._log_max_retries(max_retries)
-        
-    # Assert
-    mock_print.assert_not_called()
+        await setup_common_logging._log_max_retries(5)
+        mock_print.assert_called_with("Failed to generate correct code with 100% coverage after 5 attempts.")
 
-def test_edge_case_large_retries():
-    # Arrange
-    instance = CommonLoggingStatements()
-    max_retries = 100
-    
-    # Act
+@pytest.mark.asyncio
+async def test_log_max_retries_zero_attempts(setup_common_logging):
     with patch('builtins.print') as mock_print:
-        instance._log_max_retries(max_retries)
-        
-    # Assert
-    mock_print.assert_called_once()
+        await setup_common_logging._log_max_retries(0)
+        mock_print.assert_called_with("Failed to generate correct code with 100% coverage after 0 attempts.")
 
-def test_error_condition():
-    # Arrange
-    instance = CommonLoggingStatements()
-    max_retries = -1  # Invalid input, should not log anything
-    
-    # Act
-    with patch('builtins.print') as mock_print:
-        instance._log_max_retries(max_retries)
-        
-    # Assert
-    mock_print.assert_not_called()
+@pytest.mark.asyncio
+async def test_log_max_retries_negative_attempts(setup_common_logging):
+    with pytest.raises(ValueError):
+        await setup_common_logging._log_max_retries(-1)
 
-def test_verbose_off():
-    # Arrange
-    instance = CommonLoggingStatements()
-    max_retries = 5
-    
-    # Act
+@pytest.mark.asyncio
+async def test_log_max_retries_non_integer_attempts(setup_common_logging):
+    with pytest.raises(ValueError):
+        await setup_common_logging._log_max_retries("not an integer")
+
+@pytest.mark.asyncio
+async def test_log_max_retries_verbose_false(setup_common_logging):
+    mock_data = {"verbose": False}
     with patch('builtins.print') as mock_print:
-        instance.init_kwargs['verbose'] = False
-        instance._log_max_retries(max_retries)
-        
-    # Assert
-    mock_print.assert_not_called()
+        setup_common_logging = CommonLoggingStatements(data=mock_data)
+        await setup_common_logging._log_max_retries(5)
+        assert not mock_print.called
+
+Failed to generate correct code with 100% coverage after 5 attempts.

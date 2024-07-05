@@ -2,59 +2,97 @@ from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from code_autoeval.clients.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
 
-# Analysis of the function:
-# The function `find_args_for_generated_function` is designed to find and return a list of arguments for a given generated function. 
-# It uses Python's inspect module to get the signature of the function, then it iterates through each parameter to determine its value based on certain conditions.
-# If 'df' is one of the parameters, it checks if df is provided and appends it to the args list. For other string parameters, it assumes they are column names from a DataFrame. 
-# Default values for parameters are used when available, otherwise errors or prints are generated for undetermined parameters. The function also supports debugging with print statements.
+from code_autoeval.llm_model.utils.execute_generated_code import \
+    ExecuteGeneratedCode
 
-def test_find_args_for_generated_function_no_parameters():
-    # Test case where the function has no parameters
-    @patch("code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
-    def test(mock_init):
-        mock_instance = ExecuteGeneratedCode()
-        result = mock_instance.find_args_for_generated_function(lambda x: x, None)
+# Analyze of the function:
+# The function `find_args_for_generated_function` is designed to find and return arguments for a given generated function.
+# It uses inspect.signature to get the signature of the function, then iterates over its parameters to determine which ones should be passed as arguments.
+# If 'df' is one of the parameters, it checks if df is provided and appends the first column of df if so. For other cases, it either uses default values or raises errors based on the parameter type and presence of a default value.
+# The function also includes debug prints when enabled.
+
+def test_find_args_for_generated_function():
+    # Mock data
+    mock_df = pd.DataFrame({'col1': [1, 2], 'col2': ['a', 'b']})
+
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
+    def test_normal_use(mock_init):
+        mock_instance = ExecuteGeneratedCode({})
+
+        # Test case 1: Normal use with 'df' as a parameter
+        @patch("code_autoeval.llm_model.utils.execute_generated_code.inspect")
+        def test(mock_inspect):
+            mock_sig = MagicMock()
+            mock_sig.parameters = {'df': MagicMock()}
+            mock_inspect.signature.return_value = mock_sig
+
+            result = mock_instance.find_args_for_generated_function(lambda x: None, mock_df)
+            assert result == [mock_df]
+
+        test()
+
+    test_normal_use()
+
+def test_edge_case_no_parameters():
+    # Test case 2: Function with no parameters
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.inspect")
+    def test(mock_inspect):
+        mock_sig = MagicMock()
+        mock_sig.parameters = {}
+        mock_inspect.signature.return_value = mock_sig
+
+        mock_instance = ExecuteGeneratedCode({})
+        result = mock_instance.find_args_for_generated_function(lambda x: None, pd.DataFrame())
         assert result == []
+
     test()
 
-def test_find_args_for_generated_function_with_df():
-    # Test case where the function has 'df' as a parameter
-    @patch("code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
-    def test(mock_init):
-        mock_instance = ExecuteGeneratedCode()
-        df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-        result = mock_instance.find_args_for_generated_function(lambda df: df, df)
-        assert isinstance(result[0], pd.DataFrame) and (result[0].equals(df))
+def test_error_case_df_not_provided():
+    # Test case 3: Function with 'df' as a parameter but not provided
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.inspect")
+    def test(mock_inspect):
+        mock_sig = MagicMock()
+        mock_sig.parameters = {'df': MagicMock()}
+        mock_inspect.signature.return_value = mock_sig
+
+        mock_instance = ExecuteGeneratedCode({})
+        with pytest.raises(ValueError) as excinfo:
+            mock_instance.find_args_for_generated_function(lambda x: None, None)
+        assert str(excinfo.value) == "DataFrame is required but not provided"
+
     test()
 
-def test_find_args_for_generated_function_with_string_parameter():
-    # Test case where the function has a string parameter that is assumed to be a column name from df
-    @patch("code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
-    def test(mock_init):
-        mock_instance = ExecuteGeneratedCode()
-        df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
-        result = mock_instance.find_args_for_generated_function(lambda col1: col1, df)
-        assert result[0] == 'col1'
-    test()
+def test_debug_print():
+    # Test case 4: Debug print enabled
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.inspect")
+    def test(mock_inspect):
+        mock_sig = MagicMock()
+        mock_sig.parameters = {'df': MagicMock()}
+        mock_inspect.signature.return_value = mock_sig
 
-def test_find_args_for_generated_function_with_missing_df():
-    # Test case where the function requires 'df' but it is not provided
-    @patch("code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
-    def test(mock_init):
-        mock_instance = ExecuteGeneratedCode()
-        with pytest.raises(ValueError):
-            mock_instance.find_args_for_generated_function(lambda df: df, None)
-    test()
-
-def test_find_args_for_generated_function_with_debug():
-    # Test case where the function has debug enabled and prints arguments before returning them
-    @patch("code_autoeval.clients.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
-    def test(mock_init):
-        mock_instance = ExecuteGeneratedCode()
-        df = pd.DataFrame({'col1': [1, 2], 'col2': [3, 4]})
         with patch('builtins.print') as mock_print:
-            result = mock_instance.find_args_for_generated_function(lambda df: df, df, debug=True)
-            mock_print.assert_called_with("Calling <lambda> with args: [DataFrame({'col1': [1, 2], 'col2': [3, 4]})]")
+            mock_instance = ExecuteGeneratedCode({})
+            result = mock_instance.find_args_for_generated_function(lambda x: None, pd.DataFrame(), debug=True)
+            assert result == []
+            mock_print.assert_called_with("Calling <lambda> with args: [DataFrame([], columns=['col1', 'col2'])")
+
     test()
+
+def test_skip_special_parameters():
+    # Test case 5: Skipping '*args' and '**kwargs' parameters
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.ExecuteGeneratedCode.__init__", return_value=None)
+    @patch("code_autoeval.llm_model.utils.execute_generated_code.inspect")
+    def test(mock_inspect):
+        mock_sig = MagicMock()
+        mock_sig.parameters = {'arg1': MagicMock(), 'arg2': MagicMock(), '*args': MagicMock(), '**kwargs': MagicMock()}
+        mock_inspect.signature.return_value = mock_sig
+
+        mock_instance = ExecuteGeneratedCode({})
+        result = mock_instance.find_args_for_generated_function(lambda *args, **kwargs: None)
+        assert result == []
+
+    test()    test()

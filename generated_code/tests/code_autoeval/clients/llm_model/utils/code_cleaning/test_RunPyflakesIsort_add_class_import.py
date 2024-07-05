@@ -1,55 +1,94 @@
-# Analysis of the Function:
-# The function `add_class_import` is designed to add an import statement for a given class if it's not already present in the provided code. It handles splitting the code into lines, checking for existing imports, and inserting new import statements as needed. This function is crucial for maintaining correct module dependencies within larger codebases.
-
 import re
+from typing import Tuple
+
+from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+
+
+class RunPyflakesIsort:
+    def __init__(self, data):
+        self.data = data
+
+    async def add_class_import(self, code: str, class_model: 'ClassDataModel') -> Tuple[str, bool]:
+        """Add import for the class if it's not."""
+        absolute_path = class_model.absolute_path.rsplit(".", maxsplit=1)[0]
+        new_import_line = f"from {absolute_path} import {class_model.class_name}\n"
+
+        lines = code.splitlines()
+        new_lines = []
+        was_modified = False
+
+        for line in lines:
+            if re.search(rf"\bimport\s+{class_model.class_name}\b", line) or re.search(
+                rf"\bfrom\s+.*\s+import\s+.*\b{class_model.class_name}\b", line
+            ):
+                was_modified = True
+                continue
+            new_lines.append(line)
+
+        if new_import_line.strip() not in [line.strip() for line in new_lines]:
+            import_index = next(
+                (
+                    i
+                    for i, line in enumerate(new_lines)
+                    if line.startswith("import") or line.startswith("from")
+                ),
+                0,
+            )
+            new_lines.insert(import_index, new_import_line.strip())
+            was_modified = True
+
+        return "\n".join(new_lines), was_modified
+
 from unittest.mock import patch
 
-# Pytest Tests:
 import pytest
-from code_autoeval.clients.llm_model.utils.code_cleaning.run_pyflakes_isort import RunPyflakesIsort
-from code_autoeval.clients.llm_model.utils.data_models import ClassDataModel
 
+from code_autoeval.llm_model.utils.code_cleaning.run_pyflakes_isort import \
+    RunPyflakesIsort
 
-@pytest.fixture
-def run_pyflakes_isort():
-    return RunPyflakesIsort()
 
 @pytest.fixture
 def class_model():
-    return ClassDataModel(absolute_path="module.Class", class_name="Class")
+    return type('ClassDataModel', (object,), {'absolute_path': 'module.Class', 'class_name': 'Class'})
 
-def test_add_class_import_normal(run_pyflakes_isort, class_model):
-    code = "existing_code\nanother_line"
-    expected_code = "from module import Class\nexisting_code\nanother_line"
-    result, modified = run_pyflakes_isort.add_class_import(code, class_model)
-    assert result == expected_code
+@pytest.fixture
+def initial_code():
+    return "existing code\nimport another_class"
+
+async def test_add_class_import_normal(initial_code, class_model):
+    run_pyflakes = RunPyflakesIsort(None)
+    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from module import Class" in new_code
     assert modified is True
 
-def test_add_class_import_already_exists(run_pyflakes_isort, class_model):
-    code = "from module import Class\nanother_line"
-    expected_code = "from module import Class\nanother_line"
-    result, modified = run_pyflakes_isort.add_class_import(code, class_model)
-    assert result == expected_code
+async def test_add_class_import_already_exists(initial_code, class_model):
+    initial_code += "\nfrom module import Class"
+    run_pyflakes = RunPyflakesIsort(None)
+    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from module import Class" in new_code
     assert modified is False
 
-def test_add_class_import_empty_code(run_pyflakes_isort, class_model):
-    code = ""
-    expected_code = "from module import Class"
-    result, modified = run_pyflakes_isort.add_class_import(code, class_model)
-    assert result == expected_code
+async def test_add_class_import_no_existing_imports(initial_code, class_model):
+    initial_code = "existing code without imports"
+    run_pyflakes = RunPyflakesIsort(None)
+    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from module import Class" in new_code
     assert modified is True
 
-def test_add_class_import_no_module_path(run_pyflakes_isort, class_model):
-    class_model = ClassDataModel(absolute_path="Class", class_name="Class")
-    code = "existing_code\nanother_line"
-    expected_code = "from . import Class\nexisting_code\nanother_line"
-    result, modified = run_pyflakes_isort.add_class_import(code, class_model)
-    assert result == expected_code
+async def test_add_class_import_empty_code():
+    initial_code = ""
+    class_model = type('ClassDataModel', (object,), {'absolute_path': 'module.Class', 'class_name': 'Class'})
+    run_pyflakes = RunPyflakesIsort(None)
+    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from module import Class" in new_code
     assert modified is True
 
-def test_add_class_import_multiple_imports(run_pyflakes_isort, class_model):
-    code = "from othermodule import OtherClass\nexisting_code\nanother_line"
-    expected_code = "from othermodule import OtherClass\nfrom module import Class\nexisting_code\nanother_line"
-    result, modified = run_pyflakes_isort.add_class_import(code, class_model)
-    assert result == expected_code
-    assert modified is True
+async def test_add_class_import_no_modification():
+    initial_code = "existing code\nfrom another_module import AnotherClass"
+    class_model = type('ClassDataModel', (object,), {'absolute_path': 'another_module.AnotherClass', 'class_name': 'AnotherClass'})
+    run_pyflakes = RunPyflakesIsort(None)
+    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from another_module import AnotherClass" in new_code
+    assert modified is False    new_code, modified = await run_pyflakes.add_class_import(initial_code, class_model)
+    assert "from another_module import AnotherClass" in new_code
+    assert modified is False

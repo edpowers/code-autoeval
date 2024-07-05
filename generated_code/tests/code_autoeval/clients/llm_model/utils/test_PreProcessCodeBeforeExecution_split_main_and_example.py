@@ -31,74 +31,103 @@ class PreProcessCodeBeforeExecution:
 
         return problematic_lines, undefined_names
 
+
 from unittest.mock import patch
 
 # Updated pytest tests for the PreProcessCodeBeforeExecution.split_main_and_example function
 import pytest
-from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import PreProcessCodeBeforeExecution
+
+from code_autoeval.llm_model.utils.preprocess_code_before_execution import (
+    PreProcessCodeBeforeExecution,
+)
 
 
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.__init__", return_value=None)
+@patch(
+    "code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.__init__",
+    return_value=None,
+)
 def test_normal_use_case(mock_init):
     flake8_output = """example.py:2: F401 'os' imported but unused
 example.py:3: F821 undefined name 'undefined_var'
 example.py:5: E231 missing whitespace around ','
 """
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert problematic_lines == {2}
-    assert undefined_names == {'undefined_var'}
+    assert undefined_names == {"undefined_var"}
+
 
 def test_no_errors():
     flake8_output = """example.py:1: F401 'os' imported but unused
 """
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert not problematic_lines
     assert not undefined_names
+
 
 def test_no_undefined_names():
     flake8_output = """example.py:2: F401 'os' imported but unused
 example.py:3: E231 missing whitespace around ','
 """
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert problematic_lines == {3}
     assert not undefined_names
+
 
 def test_no_problematic_lines():
     flake8_output = """example.py:1: F401 'os' imported but unused
 example.py:2: F821 undefined name 'undefined_var'
 """
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert not problematic_lines
-    assert undefined_names == {'undefined_var'}
+    assert undefined_names == {"undefined_var"}
+
 
 def test_empty_input():
     flake8_output = ""
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert not problematic_lines
     assert not undefined_names
+
 
 def test_undefined_name_with_quotes():
     flake8_output = """example.py:2: F821 undefined name 'quote'"""
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
     assert not problematic_lines
-    assert undefined_names == {'quote'}
+    assert undefined_names == {"quote"}
+
 
 def test_imported_but_unused():
     flake8_output = """example.py:1: F401 'os' imported but unused"""
     preprocess = PreProcessCodeBeforeExecution()
-    problematic_lines, undefined_names = preprocess.split_main_and_example(flake8_output)
-    
+    problematic_lines, undefined_names = preprocess.split_main_and_example(
+        flake8_output
+    )
+
+    assert problematic_lines == {1}
+    assert not undefined_names
     assert problematic_lines == {1}
     assert not undefined_names

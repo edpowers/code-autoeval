@@ -1,5 +1,6 @@
-# Updated Implementation of the CommonLoggingStatements._log_test_coverage_path function
+# Updated Implementation of the CommonLoggingStatements._log_test_coverage_path function.
 import pathlib
+from typing import Union
 from unittest.mock import patch
 
 import pytest
@@ -9,69 +10,86 @@ class CommonLoggingStatements:
     def __init__(self, init_kwargs):
         self.init_kwargs = init_kwargs
 
-    async def _log_test_coverage_path(self, test_coverage_path: str) -> None:
-        if self.init_kwargs.get('debug', False):
+    async def _log_test_coverage_path(self, test_coverage_path: Union[str, pathlib.Path]) -> None:
+        if self.init_kwargs.debug:
             print(f"Test coverage path: {test_coverage_path}")
 
-# Mocking the initialization parameters and class attributes for unit testing
-@patch("code_autoeval.clients.llm_model.utils.logging_statements.common_logging_statements.CommonLoggingStatements.__init__", return_value=None)
-class TestCommonLoggingStatements:
-    @pytest.fixture(autouse=True)
-    def setup(self, mock_init):
-        self.instance = CommonLoggingStatements({"debug": True})
-
-    def test_log_test_coverage_path_normal(self):
-        # Arrange
-        test_coverage_path = "some/path"
+# Updated pytest tests to cover all code paths and edge cases.
+@pytest.mark.asyncio
+async def test_log_test_coverage_path():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': True})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    # Act
+    with patch('builtins.print') as mock_print:
+        await common_logging_statements._log_test_coverage_path("/mocked/path")
         
-        # Act
-        with patch("builtins.print") as mock_print:
-            self.instance._log_test_coverage_path(test_coverage_path)
-            
         # Assert
-        mock_print.assert_called_once_with("Test coverage path: some/path")
+        mock_print.assert_called_with("Test coverage path: /mocked/path")
 
-    def test_log_test_coverage_path_edge_case_none(self):
-        # Arrange
-        test_coverage_path = None
+@pytest.mark.asyncio
+async def test_log_test_coverage_path_no_debug():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': False})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    # Act & Assert
+    with patch('builtins.print') as mock_print:
+        await common_logging_statements._log_test_coverage_path("/mocked/path")
         
-        # Act
-        with patch("builtins.print") as mock_print:
-            self.instance._log_test_coverage_path(test_coverage_path)
-            
-        # Assert
-        assert not mock_print.called
+        # Ensure print was not called
+        assert mock_print.call_count == 0
 
-    def test_log_test_coverage_path_error_condition_debug_false(self):
-        # Arrange
-        test_coverage_path = "some/path"
-        instance = CommonLoggingStatements({"debug": False})
+@pytest.mark.asyncio
+async def test_log_test_coverage_path_non_string_path():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': True})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    # Act & Assert
+    with patch('builtins.print') as mock_print:
+        await common_logging_statements._log_test_coverage_path(None)
         
-        # Act
-        with patch("builtins.print") as mock_print:
-            instance._log_test_coverage_path(test_coverage_path)
-            
-        # Assert
-        assert not mock_print.called
+        # Ensure print was not called for non-string path
+        assert mock_print.call_count == 0
 
-    def test_log_test_coverage_path_edge_case_empty_string(self):
-        # Arrange
-        test_coverage_path = ""
+@pytest.mark.asyncio
+async def test_log_test_coverage_path_empty_path():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': True})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    # Act & Assert
+    with patch('builtins.print') as mock_print:
+        await common_logging_statements._log_test_coverage_path("")
         
-        # Act
-        with patch("builtins.print") as mock_print:
-            self.instance._log_test_coverage_path(test_coverage_path)
-            
-        # Assert
-        mock_print.assert_called_once_with("Test coverage path: ")
+        # Ensure print was not called for empty path
+        assert mock_print.call_count == 0
 
-    def test_log_test_coverage_path_edge_case_pathlib_path(self):
-        # Arrange
-        test_coverage_path = pathlib.Path("some/path")
+@pytest.mark.asyncio
+async def test_log_test_coverage_path_invalid_type():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': True})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    # Act & Assert
+    with pytest.raises(TypeError):
+        await common_logging_statements._log_test_coverage_path(12345)  # Invalid type (int)
+
+# Additional test to ensure the function handles large paths correctly.
+@pytest.mark.asyncio
+async def test_log_test_coverage_path_large_path():
+    # Arrange
+    init_kwargs = type('InitKwargs', (object,), {'debug': True})()
+    common_logging_statements = CommonLoggingStatements(init_kwargs)
+    
+    large_path = "/a" * 1000 + "b"  # Large path to test string handling.
+    
+    # Act & Assert
+    with patch('builtins.print') as mock_print:
+        await common_logging_statements._log_test_coverage_path(large_path)
         
-        # Act
-        with patch("builtins.print") as mock_print:
-            self.instance._log_test_coverage_path(test_coverage_path)
-            
-        # Assert
-        mock_print.assert_called_once_with("Test coverage path: some/path")
+        # Ensure print was called with the large path.
+        assert mock_print.call_count == 1
+        mock_print.assert_called_with(f"Test coverage path: {large_path}")

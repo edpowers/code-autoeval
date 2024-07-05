@@ -1,11 +1,11 @@
-import json
-from typing import Union
+from unittest.mock import PropertyMock, patch
 
 import pandas as pd
+import pytest
 
 
 class SerializeDataframes:
-    def serialize_dataframe(self, df: Union[pd.DataFrame, dict]) -> dict:
+    def serialize_dataframe(self, df):
         if isinstance(df, pd.DataFrame):
             if len(df) <= 15:
                 sample = df
@@ -14,80 +14,126 @@ class SerializeDataframes:
                 last_5 = df.tail(5)
                 middle_5 = df.iloc[5:-5].sample(5)
                 sample = pd.concat([first_5, middle_5, last_5])
-
             return {
                 "type": "DataFrame",
-                "data": json.loads(sample.to_json(orient="split")),
+                "data": sample.to_json(orient="split"),
                 "dtypes": str(df.dtypes.to_dict()),
             }
-        elif isinstance(df, dict):
-            # Assuming the dictionary represents a DataFrame in JSON format
-            return df
-        else:
-            raise ValueError("Input must be a pandas DataFrame or a dictionary.")
+        return df
 
-from unittest.mock import patch
+# Updated implementation of the SerializeDataframes.serialize_dataframe function.
 
-import pandas as pd
-import pytest
-from code_autoeval.clients.llm_model.utils.model_response.serializing_dataframes import SerializeDataframes
+##################################################
+# TESTS
+##################################################
 
+@pytest.mark.asyncio
+async def test_serialize_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create a mock DataFrame with 20 rows and 5 columns
+    data = {f'col{i}': list(range(1, 21)) for i in range(1, 6)}
+    mock_df = pd.DataFrame(data)
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result["type"] == "DataFrame"
+    assert isinstance(result["data"], str)
+    assert result["dtypes"] == "{'col1': 'int64', 'col2': 'int64', 'col3': 'int64', 'col4': 'int64', 'col5': 'int64'}"
 
-# Test the normal use case with a DataFrame
-def test_serialize_dataframe_normal():
-    df = pd.DataFrame({
-        'A': range(1, 20),
-        'B': range(20, 40)
-    })
-    expected_output = {
-        "type": "DataFrame",
-        "data": json.loads(df.head(5).to_json(orient="split")),
-        "dtypes": str({'A': 'int64', 'B': 'int64'})
-    }
-    result = SerializeDataframes().serialize_dataframe(df)
-    assert result == expected_output
+@pytest.mark.asyncio
+async def test_serialize_small_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create a mock DataFrame with 10 rows and 3 columns
+    data = {f'col{i}': list(range(1, 11)) for i in range(1, 4)}
+    mock_df = pd.DataFrame(data)
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result == mock_df
 
-# Test the edge case with a small DataFrame
-def test_serialize_dataframe_small():
-    df = pd.DataFrame({
-        'A': range(1, 6),
-        'B': range(20, 25)
-    })
-    expected_output = {
-        "type": "DataFrame",
-        "data": json.loads(df.to_json(orient="split")),
-        "dtypes": str({'A': 'int64', 'B': 'int64'})
-    }
-    result = SerializeDataframes().serialize_dataframe(df)
-    assert result == expected_output
+@pytest.mark.asyncio
+async def test_serialize_large_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create a mock DataFrame with 25 rows and 3 columns
+    data = {f'col{i}': list(range(1, 26)) for i in range(1, 4)}
+    mock_df = pd.DataFrame(data)
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result["type"] == "DataFrame"
+    assert isinstance(result["data"], str)
+    assert result["dtypes"] == "{'col1': 'int64', 'col2': 'int64', 'col3': 'int64'}"
 
-# Test the case with an invalid input (non-DataFrame or non-dict object)
-def test_serialize_dataframe_invalid_input():
-    with pytest.raises(ValueError):
-        SerializeDataframes().serialize_dataframe("not a DataFrame")
+@pytest.mark.asyncio
+async def test_serialize_empty_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create an empty DataFrame
+    mock_df = pd.DataFrame()
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result == mock_df
 
-# Test the case with a large DataFrame
-@patch('code_autoeval.clients.llm_model.utils.model_response.serializing_dataframes.SerializeDataframes._sample_large_df')
-def test_serialize_dataframe_large(mock_sample):
-    df = pd.DataFrame({
-        'A': range(1, 30),
-        'B': range(20, 50)
-    })
-    mock_sample.return_value = df.head(5).append(df.tail(5)).sample(5)
-    expected_output = {
-        "type": "DataFrame",
-        "data": json.loads(mock_sample.return_value.to_json(orient="split")),
-        "dtypes": str({'A': 'int64', 'B': 'int64'})
-    }
-    result = SerializeDataframes().serialize_dataframe(df)
-    assert result == expected_output
+@pytest.mark.asyncio
+async def test_serialize_non_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Pass a non-DataFrame object
+    mock_dict = {"key": "value"}
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_dict)
+    
+    # Assert
+    assert result == mock_dict
 
-# Test the case with a dictionary input
-def test_serialize_dataframe_dict():
-    df_dict = {
-        "type": "DataFrame",
-        "data": json.dumps({'A': [1, 2, 3], 'B': [4, 5, 6]}),
-        "dtypes": "{'A': 'int64', 'B': 'int64'}"
-    }
-    result = SerializeDataframes().serialize_dataframe(df_dict)
-    assert result == df_dict
+@pytest.mark.asyncio
+async def test_serialize_nan_values():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create a DataFrame with NaN values
+    data = {f'col{i}': [float('nan')] * 20 for i in range(1, 6)}
+    mock_df = pd.DataFrame(data)
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result["type"] == "DataFrame"
+    assert isinstance(result["data"], str)
+    assert result["dtypes"] == "{'col1': 'float64', 'col2': 'float64', 'col3': 'float64', 'col4': 'float64', 'col5': 'float64'}"
+
+@pytest.mark.asyncio
+async def test_serialize_large_nan_dataframe():
+    # Arrange
+    ser = SerializeDataframes()
+    
+    # Create a DataFrame with NaN values and more than 15 rows
+    data = {f'col{i}': [float('nan')] * 25 for i in range(1, 4)}
+    mock_df = pd.DataFrame(data)
+    
+    # Act
+    result = await ser.serialize_dataframe(mock_df)
+    
+    # Assert
+    assert result["type"] == "DataFrame"
+    assert isinstance(result["data"], str)
+    assert result["dtypes"] == "{'col1': 'float64', 'col2': 'float64', 'col3': 'float64'}"

@@ -1,99 +1,136 @@
 import os
 import tempfile
-from unittest.mock import MagicMock, patch
+from typing import Optional, Tuple
+from unittest.mock import patch
 
 import pytest
 
+from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+from code_autoeval.llm_model.utils.model.function_attributes import \
+    FunctionAttributes
+from code_autoeval.llm_model.utils.preprocess_code_before_execution import \
+    PreProcessCodeBeforeExecution
+from code_autoeval.llm_model.utils.python_class_manager import \
+    PythonClassManager
 
-class PreProcessCodeBeforeExecution:
-    def __init__(self, common):
-        self.common = common
 
-    @staticmethod
-    def extract_imports(code):
-        # Mock implementation for the sake of example
-        return ["mocked_import"]
+class TestPreProcessCodeBeforeExecution:
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
+    def test_normal_use_case(self, mock_extract_imports, mock_log_code):
+        # Arrange
+        code = "print('Hello, World!')"
+        max_line_length = 480
+        class_model = ClassDataModel()
+        func_attributes = FunctionAttributes()
+        is_pytest_format = False
+        preprocess = PreProcessCodeBeforeExecution()
 
-    def _log_code(self, code, message):
-        print(message)
-        print(code)
-
-    async def preprocess_code(self, code: str, max_line_length: int = 480, class_model=None, **kwargs):
-        relative_path = (class_model.absolute_path.rsplit(".", maxsplit=1)[0]).replace(".", "/")
-        code_filepath = self.common.project_root.joinpath(relative_path).with_suffix(".py")
-        
-        with open(code_filepath, "r") as file:
-            original_code = file.read()
-
-        self._log_code(str(code_filepath), "Original code file path:")
-        self._log_code(original_code, "Original code:")
-
-        original_imports = self.extract_imports(original_code)
-
+        # Mock the file reading and imports extraction
+        mock_extract_imports.return_value = []
         with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
             temp_file.write(code)
             temp_file_path = temp_file.name
 
-        try:
-            return self._extracted_from_preprocess_code_(temp_file_path, code, max_line_length, class_model=class_model, original_imports=original_imports)
-        finally:
-            os.unlink(temp_file_path)
+        # Act
+        result, _ = preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
 
-    def _extracted_from_preprocess_code_(self, temp_file_path, code, max_line_length, class_model, original_imports):
-        # Mock implementation for the sake of example
-        return ("processed_code", True)
+        # Assert
+        assert result == code
+        os.unlink(temp_file_path)
 
-# Test cases for PreProcessCodeBeforeExecution.preprocess_code
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
-def test_normal_use_case(mock_log_code, mock_extract_imports):
-    # Arrange
-    common = MagicMock()
-    preprocessor = PreProcessCodeBeforeExecution(common)
-    code = "print('Hello, World!')"
-    max_line_length = 480
-    class_model = MagicMock()
-    class_model.absolute_path = "example.module"
-    mock_extract_imports.return_value = ["mocked_import"]
-    
-    # Act
-    result = preprocessor.preprocess_code(code, max_line_length, class_model)
-    
-    # Assert
-    assert isinstance(result, tuple) and len(result) == 2
-    assert result[0] == "processed_code"
-    assert result[1] is True
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
+    def test_edge_case_empty_code(self, mock_extract_imports, mock_log_code):
+        # Arrange
+        code = ""
+        max_line_length = 480
+        class_model = ClassDataModel()
+        func_attributes = FunctionAttributes()
+        is_pytest_format = False
+        preprocess = PreProcessCodeBeforeExecution()
 
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
-def test_edge_case_no_imports(mock_log_code, mock_extract_imports):
-    # Arrange
-    common = MagicMock()
-    preprocessor = PreProcessCodeBeforeExecution(common)
-    code = "print('Hello, World!')"
-    max_line_length = 480
-    class_model = MagicMock()
-    class_model.absolute_path = "example.module"
-    mock_extract_imports.return_value = []
-    
-    # Act
-    result = preprocessor.preprocess_code(code, max_line_length, class_model)
-    
-    # Assert
-    assert isinstance(result, tuple) and len(result) == 2
-    assert result[0] == "processed_code"
-    assert result[1] is True
+        # Mock the file reading and imports extraction
+        mock_extract_imports.return_value = []
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_file_path = temp_file.name
 
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
-@patch("code_autoeval.clients.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
-def test_error_condition(mock_log_code, mock_extract_imports):
-    # Arrange
-    common = MagicMock()
-    preprocessor = PreProcessCodeBeforeExecution(common)
-    code = "print('Hello, World!')"
-    max_line_length = 480
-    class_model = None  # This should trigger an error condition
-    
-    # Act & Assert
-    with pytest.raises(TypeError):
-        preprocessor.preprocess_code(code, max_line_length, class_model)
+        # Act
+        result, _ = preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
+
+        # Assert
+        assert result == code
+        os.unlink(temp_file_path)
+
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
+    def test_error_condition_invalid_file(self, mock_extract_imports, mock_log_code):
+        # Arrange
+        code = "print('Hello, World!')"
+        max_line_length = 480
+        class_model = ClassDataModel()
+        func_attributes = FunctionAttributes()
+        is_pytest_format = False
+        preprocess = PreProcessCodeBeforeExecution()
+
+        # Mock the file reading and imports extraction
+        mock_extract_imports.return_value = []
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_file_path = temp_file.name
+
+        # Act and Assert
+        with pytest.raises(FileNotFoundError):
+            preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
+
+        os.unlink(temp_file_path)
+
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
+    def test_pytest_format(self, mock_extract_imports, mock_log_code):
+        # Arrange
+        code = "def test_function(): pass"
+        max_line_length = 480
+        class_model = ClassDataModel()
+        func_attributes = FunctionAttributes()
+        is_pytest_format = True
+        preprocess = PreProcessCodeBeforeExecution()
+
+        # Mock the file reading and imports extraction
+        mock_extract_imports.return_value = []
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_file_path = temp_file.name
+
+        # Act
+        result, _ = preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
+
+        # Assert
+        assert result == code
+        os.unlink(temp_file_path)
+
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution._log_code")
+    @patch("code_autoeval.llm_model.utils.preprocess_code_before_execution.PreProcessCodeBeforeExecution.extract_imports")
+    def test_class_definition(self, mock_extract_imports, mock_log_code):
+        # Arrange
+        code = "class TestClass: pass"
+        max_line_length = 480
+        class_model = ClassDataModel()
+        func_attributes = FunctionAttributes()
+        is_pytest_format = False
+        preprocess = PreProcessCodeBeforeExecution()
+
+        # Mock the file reading and imports extraction
+        mock_extract_imports.return_value = []
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_file_path = temp_file.name
+
+        # Act and Assert
+        with pytest.raises(Exception):  # Adjust the exception type based on actual implementation
+            preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
+
+        os.unlink(temp_file_path)            preprocess.preprocess_code(code, max_line_length, class_model, func_attributes, is_pytest_format)
+
+        os.unlink(temp_file_path)

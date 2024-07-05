@@ -17,7 +17,9 @@ class PreProcessCodeBeforeExecution:
 from unittest.mock import patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.preprocess_code_before_execution import PreProcessCodeBeforeExecution
+
+from code_autoeval.llm_model.utils.preprocess_code_before_execution import \
+    PreProcessCodeBeforeExecution
 
 
 # Test fixture for the class under test
@@ -52,5 +54,7 @@ def test_format_code_with_black_empty(preprocess_code):
 # Test use case with None input
 def test_format_code_with_black_none(preprocess_code):
     code = None
+    with pytest.raises(TypeError):
+        preprocess_code.format_code_with_black(code)    code = None
     with pytest.raises(TypeError):
         preprocess_code.format_code_with_black(code)

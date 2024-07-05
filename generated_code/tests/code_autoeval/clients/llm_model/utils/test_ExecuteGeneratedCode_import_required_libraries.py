@@ -1,56 +1,144 @@
+import subprocess
+
+# Updated Implementation of ExecuteGeneratedCode.import_required_libraries Function
+
+class ExecuteGeneratedCode:
+    def __init__(self):
+        self.imported_libraries = set()
+
+    async def import_required_libraries(self, code: str) -> None:
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as temp_file:
+            temp_file.write(code)
+            temp_file_path = temp_file.name
+
+        try:
+            flake8_result = await asyncio.run(self._run_flake8(temp_file_path))
+
+            libraries = set()
+            for line in flake8_result.stdout.splitlines():
+                parts = line.split("'")
+                if len(parts) >= 2:
+                    lib = parts[1].split(".")[0]
+                    libraries.add(lib)
+
+            for lib in libraries:
+                if lib not in sys.modules and lib not in self.imported_libraries:
+                    try:
+                        importlib.import_module(lib)
+                        self.imported_libraries.add(lib)
+                        print(f"Imported {lib}")
+                    except ImportError:
+                        print(f"Failed to import {lib}")
+        finally:
+            os.unlink(temp_file_path)
+
+        self._log_code("\n".join(self.imported_libraries), "Imported libraries:")
+
+    async def _run_flake8(self, file_path):
+        process = await asyncio.create_subprocess_exec(
+            'flake8', '--select=F401', file_path,
+            stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE)
+        
+        stdout, stderr = await process.communicate()
+        return subprocess.CompletedProcess(args=process.args, returncode=process.returncode, stdout=stdout.decode(), stderr=stderr.decode())
+
+import asyncio
 import importlib
 import os
-import subprocess
 import sys
 import tempfile
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from code_autoeval.clients.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
 
-# Analysis of the function:
-# The function `import_required_libraries` is designed to parse and execute Python code that contains import statements.
-# It uses flake8 to analyze the code for unused imports, which are then imported by the script.
-# The function handles temporary files and ensures that libraries are not already imported or in sys.modules before attempting to import them.
 
-def test_import_required_libraries():
-    # Test normal use case with valid Python code containing import statements
-    code = "import os\nimport pandas as pd"
-    execute_generated_code = ExecuteGeneratedCode()
-    with patch("subprocess.run", return_value=MagicMock(stdout="")):
-        execute_generated_code.import_required_libraries(code)
-        assert 'os' in sys.modules
-        assert 'pandas' in sys.modules
+@pytest.fixture
+def execute_generated_code():
+    return ExecuteGeneratedCode()
 
-def test_import_required_libraries_with_flake8_error():
-    # Test case where flake8 returns an error due to invalid Python code
-    code = "invalid python code"
-    execute_generated_code = ExecuteGeneratedCode()
-    with patch("subprocess.run", return_value=MagicMock(stdout="E999: SyntaxError: invalid syntax")):
-        with pytest.raises(SyntaxError):
-            execute_generated_code.import_required_libraries(code)
+@patch("asyncio.create_subprocess_exec", return_value=None)
+@patch("os.unlink")
+@patch("sys.modules", {})
+@patch("importlib.import_module")
+@pytest.mark.asyncio
+async def test_import_required_libraries(mock_import, mock_unlink, mock_run, execute_generated_code):
+    code = "import os\nimport sys"
+    with tempfile.NamedTemporaryFile() as temp_file:
+        temp_file.write(code.encode())
+        temp_file.seek(0)
+        
+        await execute_generated_code.import_required_libraries(temp_file.name)
+        
+        assert mock_run.called
+        assert "os" in execute_generated_code.imported_libraries
+        assert "sys" in execute_generated_code.imported_libraries
+        assert mock_unlink.called
 
-def test_import_required_libraries_with_existing_import():
-    # Test case where a library is already imported and should not be re-imported
+@patch("asyncio.create_subprocess_exec", return_value=None)
+@patch("os.unlink")
+@patch("sys.modules", {"os": None})
+@patch("importlib.import_module", side_effect=ImportError)
+@pytest.mark.asyncio
+async def test_import_required_libraries_failure(mock_import, mock_unlink, mock_run, execute_generated_code):
+    code = "import os\nimport sys"
+    with tempfile.NamedTemporaryFile() as temp_file:
+        temp_file.write(code.encode())
+        temp_file.seek(0)
+        
+        await execute_generated_code.import_required_libraries(temp_file.name)
+        
+        assert mock_run.called
+        assert "os" not in execute_generated_code.imported_libraries
+        assert "sys" not in execute_generated_code.imported_libraries
+        assert mock_unlink.called
+
+@patch("asyncio.create_subprocess_exec", return_value=None)
+@patch("os.unlink")
+@patch("sys.modules", {})
+@patch("importlib.import_module")
+@pytest.mark.asyncio
+async def test_import_required_libraries_no_new_libs(mock_import, mock_unlink, mock_run, execute_generated_code):
     code = "import os"
-    execute_generated_code = ExecuteGeneratedCode()
-    with patch("subprocess.run", return_value=MagicMock(stdout="")):
-        import os  # Manually importing to simulate an existing import
-        execute_generated_code.import_required_libraries(code)
-        assert 'os' in sys.modules
+    with tempfile.NamedTemporaryFile() as temp_file:
+        temp_file.write(code.encode())
+        temp_file.seek(0)
+        
+        await execute_generated_code.import_required_libraries(temp_file.name)
+        
+        assert not mock_run.called
+        assert "os" in execute_generated_code.imported_libraries
+        assert mock_unlink.called
 
-def test_import_required_libraries_with_flake8_no_imports():
-    # Test case where flake8 returns no unused imports, so nothing should be imported
-    code = "print('Hello, World!')"
-    execute_generated_code = ExecuteGeneratedCode()
-    with patch("subprocess.run", return_value=MagicMock(stdout="")):
-        execute_generated_code.import_required_libraries(code)
-        assert 'os' not in sys.modules  # Ensure no modules are imported
+@patch("asyncio.create_subprocess_exec", return_value=None)
+@patch("os.unlink")
+@patch("sys.modules", {})
+@patch("importlib.import_module")
+@pytest.mark.asyncio
+async def test_import_required_libraries_empty_code(mock_import, mock_unlink, mock_run, execute_generated_code):
+    code = ""
+    with tempfile.NamedTemporaryFile() as temp_file:
+        temp_file.write(code.encode())
+        temp_file.seek(0)
+        
+        await execute_generated_code.import_required_libraries(temp_file.name)
+        
+        assert not mock_run.called
+        assert not execute_generated_code.imported_libraries
+        assert mock_unlink.called
 
-def test_import_required_libraries_with_flake8_failure():
-    # Test case where flake8 fails to run, simulating an error during import analysis
-    code = "import os"
-    execute_generated_code = ExecuteGeneratedCode()
-    with patch("subprocess.run", side_effect=OSError("Failed to execute flake8")):
-        with pytest.raises(OSError):
-            execute_generated_code.import_required_libraries(code)
+@patch("asyncio.create_subprocess_exec", return_value=None)
+@patch("os.unlink")
+@patch("sys.modules", {})
+@patch("importlib.import_module")
+@pytest.mark.asyncio
+async def test_import_required_libraries_invalid_code(mock_import, mock_unlink, mock_run, execute_generated_code):
+    code = "import invalid_library"
+    with tempfile.NamedTemporaryFile() as temp_file:
+        temp_file.write(code.encode())
+        temp_file.seek(0)
+        
+        await execute_generated_code.import_required_libraries(temp_file.name)
+        
+        assert mock_run.called
+        assert "invalid_library" not in execute_generated_code.imported_libraries
+        assert mock_unlink.called
