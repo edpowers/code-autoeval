@@ -115,9 +115,6 @@ class ExecuteGeneratedCode(
             self.validate_target_node(target_node, self.init_kwargs.func_name)
 
             exec(main_code, global_vars, local_vars)
-
-            # self.func_name = self._find_func_name(func, local_vars)
-
             # Update local variable names to avoid conflicts
             local_vars = self.update_local_var_names(local_vars)
 
@@ -150,22 +147,6 @@ class ExecuteGeneratedCode(
                     generated_func = getattr(class_obj, method_name)
                 else:
                     generated_func = local_vars[func.__name__]
-
-            # If it's a class, we need to get the method
-            # if isinstance(target_node, ast.ClassDef):
-            #    class_obj = local_vars[func.__name__]
-            #   method_name = func.__name__.split(".")[-1]  # Get the method name
-            #    generated_func = getattr(class_obj, method_name)
-            # elif "." in func.__name__:
-            #    # It's a method
-            #    class_name, method_name = func.__name__.split(".")
-            #    class_obj = local_vars[class_name]
-            #    generated_func = getattr(class_obj, method_name)
-            # else:
-            #     generated_func = local_vars[func.__name__]
-
-            # Get the generated function
-            # generated_func: Callable = local_vars[self.func_name]
 
             # Find the arguments for the generated function
             args = self.find_args_for_generated_function(generated_func, df, debug)
@@ -235,18 +216,6 @@ class ExecuteGeneratedCode(
 
         return "\n".join(import_lines)
 
-    def _find_func_name(self, func: Callable, local_vars: dict) -> str:
-        # Find the function name
-        func_name = func.__name__
-
-        if func_name not in local_vars:
-            pass
-            # raise ValueError(f"Function '{func_name}' not found in the executed code.")
-        elif not callable(local_vars[func_name]):
-            raise ValueError(f"'{func_name}' is not a callable function in the code.")
-
-        return func_name
-
     def find_args_for_generated_function(
         self, generated_func: Callable, df: pd.DataFrame, debug: bool = False
     ) -> List[str | pd.DataFrame]:
@@ -270,7 +239,7 @@ class ExecuteGeneratedCode(
             elif param.default != inspect.Parameter.empty:
                 # Use default value if available
                 args.append(param.default)
-            elif str(param) in ["*args", "**kwargs"]:
+            elif str(param) in {"*args", "**kwargs"}:
                 # Skip these parameters
                 continue
             else:

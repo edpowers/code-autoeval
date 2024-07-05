@@ -113,6 +113,9 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
             str(self.absolute_path_from_root), intro_message="absolute_path_from_root:"
         )
 
+        self.file_path.unlink(missing_ok=True)
+        self.test_file_path.unlink(missing_ok=True)
+
         # Write the main code to a file
         with open(self.file_path, "w") as f:
             f.write(code)
@@ -131,10 +134,6 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         module_path = Path(SystemUtils.get_class_file_path(func))
         # Create the relative path from the project root
         relative_path = module_path.relative_to(self.common.project_root)
-
-        # func_name = (
-        #    class_model.class_name if class_model else self.init_kwargs.func_name
-        # )
 
         func_name = self.init_kwargs.func_name
 

@@ -15,7 +15,6 @@ from code_autoeval.llm_model.utils.extraction.extract_classes_from_file import (
 from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
-from code_autoeval.llm_model.utils.file_path_functions import FilePathFunctions
 from code_autoeval.llm_model.utils.model import function_attributes
 from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
 from code_autoeval.llm_model.utils.validation.validate_regexes import (
@@ -25,7 +24,7 @@ from code_autoeval.llm_model.utils.validation.validate_regexes import (
 
 
 class PreProcessCodeBeforeExecution(
-    FilePathFunctions, ValidateRegexes, RunPyflakesIsort, ExtractImportsFromFile
+    ValidateRegexes, RunPyflakesIsort, ExtractImportsFromFile
 ):
 
     @validate_code()
@@ -68,28 +67,13 @@ class PreProcessCodeBeforeExecution(
     def preprocess_code(
         self,
         code: str,
-        max_line_length: int = 480,
         class_model: Optional[ClassDataModel] = None,
         func_attributes: function_attributes.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,
     ) -> Tuple[str, bool]:
-
-        # Read code from original file:
-        relative_path = (class_model.absolute_path.rsplit(".", maxsplit=1)[0]).replace(
-            ".", "/"
-        )
-
-        # Attach to the project root
-        code_filepath = self.common.project_root.joinpath(relative_path).with_suffix(
-            ".py"
-        )
-        with open(code_filepath, "r") as file:
-            original_code = file.read()
-
-        self._log_code(str(code_filepath), "Original code file path:")
-        self._log_code(original_code, "Original code:")
-
+        """Preprocess the code before running it."""
+        original_code = self._read_in_original_code(func_attributes)
         # Extract imports from the original file
         original_imports = self.extract_imports(original_code)
         # Create a temporary file
@@ -102,9 +86,9 @@ class PreProcessCodeBeforeExecution(
             if kwargs.get("code_type", "") == "pytest" or is_pytest_format:
                 # Then verify that we don't have the class definition in the test file.
                 # the class definition would be provided by the class_model
-                PythonClassManager.extract_remove_class_from_file(
+                code = PythonClassManager.extract_remove_class_from_file(
                     class_model.class_name,
-                    file_path=func_attributes.test_absolute_file_path,
+                    file_path=str(func_attributes.test_absolute_file_path),
                     content=code,
                 )
 
@@ -112,7 +96,6 @@ class PreProcessCodeBeforeExecution(
             return self._extracted_from_preprocess_code_(
                 temp_file_path,
                 code,
-                max_line_length,
                 class_model=class_model,
                 original_imports=original_imports,
             )
@@ -120,12 +103,24 @@ class PreProcessCodeBeforeExecution(
             # Clean up the temporary file
             os.unlink(temp_file_path)
 
+    def _read_in_original_code(
+        self, func_attributes: function_attributes.FunctionAttributes
+    ) -> str:
+        with open(func_attributes.module_absolute_path, "r") as file:
+            original_code = file.read()
+
+        self._log_code(
+            str(func_attributes.module_absolute_path), "Original code file path:"
+        )
+        self._log_code(original_code, "Original code:")
+
+        return original_code
+
     # TODO Rename this here and in `preprocess_code`
     def _extracted_from_preprocess_code_(
         self,
-        temp_file_path,
-        code,
-        max_line_length,
+        temp_file_path: str,
+        code: str,
         class_model: Optional[ClassDataModel] = None,
         original_imports: Dict[str, str] = None,
     ) -> Tuple[str, bool]:
@@ -141,17 +136,19 @@ class PreProcessCodeBeforeExecution(
         # problematic_lines, import_errors, undefined_names
         problematic_lines, undefined_names = self.parse_flake8_output(flake8_result)
 
+        if problematic_lines:
+            self._log_code(str(problematic_lines), "Problematic lines:")
+
         # Remove duplicate import errors
         import_lines_to_add = []
         # If the import error is related to the class that was supposed to be
         # imported, then use the class_model path to import the class
         # for i, error in enumerate(import_errors):
         if class_model and class_model.class_name in undefined_names:
-
-            absolute_path = class_model.absolute_path.rsplit(".", maxsplit=1)[0]
             # Then add the absolute import line to the code.
-            import_line_to_add = f"from {absolute_path} import {class_model.class_name}"
-            import_lines_to_add.append(import_line_to_add)
+            import_lines_to_add.append(
+                f"from {class_model.module_relative_path} import {class_model.class_name}"
+            )
             # And then remove the error from the list
             undefined_names.remove(class_model.class_name)
 
@@ -162,9 +159,7 @@ class PreProcessCodeBeforeExecution(
             if name in original_imports
         )
         # Raise an error if there are still import issues
-        remaining_undefined = undefined_names - set(
-            name for name in import_lines_to_add
-        )
+        remaining_undefined = undefined_names - set(import_lines_to_add)
 
         # If these are known modules that have import paths within the project
         # then we can add them to the import_lines_to_add
@@ -188,24 +183,12 @@ class PreProcessCodeBeforeExecution(
                 f"Unresolved import errors for: {', '.join(remaining_undefined)}"
             )
 
-        if problematic_lines:
-            self._log_code(str(problematic_lines), "Problematic lines:")
+        if not import_lines_to_add:
+            return code, was_modified
 
         # Process the code
-        lines = code.splitlines()
-        # processed_lines = [
-        #    line
-        #    for i, line in enumerate(lines, 1)
-        #    if i not in problematic_lines and len(line) <= max_line_length
-        # ]
-
-        if import_lines_to_add:
-            processed_lines = import_lines_to_add + lines
-            was_modified = True
-        else:
-            processed_lines = lines
-
-        return "\n".join(processed_lines), was_modified
+        processed_lines = import_lines_to_add + code.splitlines()
+        return "\n".join(processed_lines), True
 
     def parse_flake8_output(
         self, flake8_output: subprocess.CompletedProcess[str]
