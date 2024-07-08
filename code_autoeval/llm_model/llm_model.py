@@ -1,6 +1,5 @@
 """LLM Backend Client Model."""
 
-import re
 from pprint import pprint
 from typing import Any, Callable, Dict, Optional, Tuple
 
@@ -12,13 +11,11 @@ from code_autoeval.llm_model.utils import (
     extraction,
     generate_fake_data,
     model,
-    model_response,
 )
 from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
 
 
 class LLMModel(
-    model_response.decipher_response.DeciperResponse,
     execute_generated_code.ExecuteGeneratedCode,
     execute_unit_tests.ExecuteUnitTests,
     extraction.extract_context_from_exception.ExtractContextFromException,
@@ -66,6 +63,10 @@ class LLMModel(
         self.init_kwargs.__dict__.update(**function_attributes.__dict__)
         self.init_kwargs.debug = debug
         self.init_kwargs.verbose = verbose
+
+        # Replace the self.common class_logger with the class_model class
+        self.common.class_logger = class_model.class_logger
+
         error_message = ""
         error_formatter = (
             extraction.extract_context_from_exception.ExtractContextFromException()
@@ -78,6 +79,8 @@ class LLMModel(
             query, goal, function_attributes, class_model=class_model
         )
 
+        self._log_code(system_prompt, intro_message="System prompt")
+
         # Generate fake data if needed - if valid df then this will get skipped.
         df = self.generate_fake_data(
             func,
@@ -89,7 +92,7 @@ class LLMModel(
         for attempt in range(max_retries):
             try:
                 if return_tuple := self.parse_existing_tests_or_raise_exception(
-                    function_attributes, df, debug, class_model, attempt, error_message
+                    function_attributes, df, class_model, attempt, error_message
                 ):
                     # If the first item of the return dict is valid, then return it.
                     if return_tuple[0]:
@@ -125,7 +128,8 @@ class LLMModel(
 
                 content = self.figure_out_model_response(c)
 
-                self.validate_func_name_in_code(content, self.init_kwargs.func_name)
+                # Removing - need a flag for is_pytest generation vs is code generation
+                # self.validate_func_name_in_code(content, self.init_kwargs.func_name)
                 self._log_code(content, intro_message="Raw content from model")
 
                 code, pytest_tests = self.split_content_from_model(content)
@@ -157,7 +161,6 @@ class LLMModel(
                     function_attributes.module_absolute_path,
                     function_attributes.test_absolute_file_path,
                     df,
-                    debug=debug,
                     class_model=class_model,
                 )
 
@@ -169,12 +172,12 @@ class LLMModel(
                         pytest_tests,
                     )
                 else:
-                    raise execute_unit_tests.MissingCoverageException(
+                    raise model.custom_exceptions.MissingCoverageException(
                         "Tests failed or coverage is not 100%"
                     )
 
             # Catch alls for code - formatting errors.
-            except execute_unit_tests.FormattingError as se:
+            except model.custom_exceptions.FormattingError as se:
 
                 file_path_to_remove = function_attributes.test_absolute_file_path
                 self._log_code(
@@ -185,7 +188,7 @@ class LLMModel(
                 file_path_to_remove.unlink(missing_ok=True)
                 continue
 
-            except execute_unit_tests.MissingCoverageException as e:
+            except model.custom_exceptions.MissingCoverageException as e:
                 error_message = str(e)
                 self._log_code(
                     f"Attempt {attempt + 1} - {error_message}",
@@ -210,68 +213,3 @@ class LLMModel(
         self._log_max_retries(max_retries)
 
         return code, None, {}, pytest_tests
-
-    def split_content_from_model(
-        self,
-        content: str,
-    ) -> Tuple[str, str]:
-        # Search for # Tests or 'pytest tests' in code:
-        if not re.search("# Test|pytest tests|test", content):
-            pprint(content)
-            raise ValueError(
-                "No '# Tests' provided in the model response. Unable to parse regex."
-            )
-
-        if code_blocks := re.findall(r"```(?:python)?(.*?)```", content, re.DOTALL):
-            # Combine all code blocks, each separated by a newline
-            code = "\n\n".join(block.strip() for block in code_blocks)
-        else:
-            code = content
-
-        # Look for any class definitions. If not found, then just return the code and pytest_tests as the same.
-        class_def_exists = re.search(r"class [A-Z]{5,}", code)
-        if not class_def_exists:
-            return code.strip(), code.strip()
-
-        if "### Explanation:" in code:
-            code_parts = re.split(r"### Explanation:", code, maxsplit=1)
-            code = code_parts[0]
-
-        return code.strip(), code.strip()
-
-        # Now split the code part to separate pytest tests
-        # code_parts = re.split(r"[# ]{0,5}Test[s]{0,1}|pytest tests", code, maxsplit=1)
-        code_parts = re.split(
-            r"(?m)^# Test[s]?(?:\s|$)|[Pp]ytest [Tt]ests|(?m)^# Updated Pytest Tests:",
-            code,
-            maxsplit=1,
-        )
-
-        if len(code_parts) > 1:
-            main_code = code_parts[0]
-            pytest_tests = (
-                (code_parts[1] + code_parts[2])
-                if len(code_parts) > 2
-                else code_parts[1]
-            )
-            pytest_tests = pytest_tests.strip()
-            if not pytest_tests.startswith("import pytest"):
-                pytest_tests = "import pytest\n" + pytest_tests
-        else:
-            main_code = code
-            pytest_tests = ""
-
-        # Clean up the expected output
-        expected_output = self.remove_non_code_patterns(expected_output, code_type="")
-
-        self.validate_func_name_in_code(main_code, self.init_kwargs.func_name)
-
-        if "def test_" in main_code and not pytest_tests:
-            pytest_tests = main_code
-
-        self.validate_test_in_pytest_code(pytest_tests)
-
-        return main_code.strip(), expected_output.strip(), pytest_tests.strip()
-        self.validate_test_in_pytest_code(pytest_tests)
-
-        return main_code.strip(), expected_output.strip(), pytest_tests.strip()

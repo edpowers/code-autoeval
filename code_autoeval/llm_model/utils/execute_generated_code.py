@@ -53,12 +53,12 @@ class ExecuteGeneratedCode(
         # Create a new dictionary for local variables
         local_vars = {}
 
-        self._log_code(original_code, "Original code:")
+        # self._log_code(original_code, "Original code:")
         # Remove markdown code blocks if present
         code = self.remove_non_code_patterns(
             original_code, code_type="function", func_name=self.init_kwargs.func_name
         )
-        self._log_code(code, "Formatted code:")
+        # self._log_code(code, "Formatted code:")
 
         # Add necessary imports and functions to the global scope
         global_vars = {

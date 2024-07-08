@@ -54,7 +54,7 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution, SystemProm
             fake_data_prompt, system_prompt=""
         )
 
-        content = self.figure_out_model_response_for_faker(fake_data_response)
+        content = self.figure_out_model_response(fake_data_response)
 
         # Extract the code part
         parts = re.split(
@@ -84,17 +84,4 @@ class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution, SystemProm
             return fake_data
 
         except Exception as e:
-            raise Exception(f"Error creating fake data: {str(e)}\nCode:\n{code}")
-
-    def figure_out_model_response_for_faker(self, response: Any) -> str:
-        """
-        Extract the content from the model's response.
-        """
-        if isinstance(response, str):
-            return response
-        elif isinstance(response, dict):
-            if "response" in response:
-                return response["response"]
-            elif "content" in response:
-                return response["content"]
-        raise ValueError(f"Unexpected response format from the model: {response}")
+            raise Exception(f"Error creating fake data: {str(e)}\nCode:\n{code}") from e

@@ -1,0 +1,5 @@
+import pytest
+from generated_code.fixtures.fixtures.extractcontextfromexception_fixture import fixture_mock_extractcontextfromexception
+from code_autoeval.llm_model.utils.extraction.extract_context_from_exception import ExtractContextFromException
+def test_mock_extractcontextfromexception(fixture_mock_extractcontextfromexception):
+    assert isinstance(fixture_mock_extractcontextfromexception, ExtractContextFromException)

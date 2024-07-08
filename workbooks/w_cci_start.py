@@ -32,6 +32,9 @@ import nest_asyncio
 from dotenv import load_dotenv
 from pydantic import create_model
 
+from code_autoeval.llm_model.utils.extraction.find_unique_imports_from_directory import (
+    FindUniqueImportsFromDirectory,
+)
 from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import (
     CommonLoggingStatements,
 )
@@ -211,7 +214,6 @@ async def main2() -> None:
 # Run the async main function
 # asyncio.run(main2())
 
-
 # %%
 # %%
 
@@ -225,7 +227,12 @@ project_root = FindProjectRoot.find_project_root(module_path)
 
 directory = project_root.joinpath("code_autoeval")
 
+generated_code_logs = project_root.joinpath("generated_code_logs")
+SystemUtils.clean_directory(generated_code_logs, python_file_patterns=["*.log"])
+
 class_info = FindClassesInDir.find_classes_in_dir(directory)
+
+unique_imports = FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
 
 class_data_factory = ClassDataModelFactory(project_root)
 
@@ -324,7 +331,7 @@ async def main3(clean_directory_before_start: bool = False) -> None:
 
 
 # Run the async main function
-value = asyncio.run(main3(clean_directory_before_start=False))
+value = asyncio.run(main3(clean_directory_before_start=True))
 
 
 # %%
@@ -337,3 +344,64 @@ value = asyncio.run(main3(clean_directory_before_start=False))
 class_data_models[0]
 
 # %%
+
+
+unique_imports = FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+unique_imports
+
+# %%
+
+
+sorted(list(unique_imports.keys()))
+# %%
+
+
+import ast
+from typing import Dict, List
+
+
+def extract_imports(file_content: str) -> Dict[str, str]:
+    def format_import(module: str, name: str, alias: str = None) -> str:
+        if alias and alias != name:
+            return f"from {module} import {name} as {alias}"
+        return f"from {module} import {name}"
+
+    imports = {}
+    tree = ast.parse(file_content)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports[alias.asname or alias.name] = f"import {alias.name}"
+        elif isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            for alias in node.names:
+                name = alias.name
+                asname = alias.asname
+                import_str = format_import(module, name, asname)
+                imports[asname or name] = import_str
+
+    return imports
+
+
+project_root = FindProjectRoot.find_project_root()
+
+
+f_llm_model = (
+    "/Users/eddyt/Algo/projects/code-autoeval/code_autoeval/llm_model/llm_model.py"
+)
+
+with open(f_llm_model, "r") as f:
+    content = f.read()
+
+extracted_imports = extract_imports(content)
+
+
+# %%
+
+
+llm_model_client = LLMModel()
+
+base_hierarchy_prompt = llm_model_client.generate_prompt_for_mock_hierarchy(class_hierarchy)
+
+c = await self.ask_backend_model(query, system_prompt=system_prompt)

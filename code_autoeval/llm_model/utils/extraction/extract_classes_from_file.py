@@ -38,15 +38,28 @@ class PythonClassManager:
                 # Mark the is_temp_file flag as True
                 self.is_temp_file = True
 
+        if not content:
+            with open(file_path, "r") as file:
+                content = file.read()
+
         self.file_path = file_path
+        self.content = content
 
     @classmethod
     def extract_remove_class_from_file(
         cls, name_of_class_to_remove: str, file_path: str = "", content: str = ""
-    ):
+    ) -> str:
         manager = PythonClassManager(file_path, content=content)
 
+        # If the class to remove is not in the content, then return the content as is
+        if name_of_class_to_remove not in manager.content:
+            return manager.content
+
         class_definitions: List[Tuple[str, int, int]] = manager.find_class_definitions()
+
+        # If there are no class definitions, then return the content as is
+        if not class_definitions:
+            return manager.content
 
         if name_of_class_to_remove in [str(cls) for cls, _, _ in class_definitions]:
             manager.remove_classes(name_of_class_to_remove)
@@ -99,13 +112,15 @@ class PythonClassManager:
         try:
             with open(self.file_path, "r") as file:
                 content = file.read()
-        except FileNotFoundError:
-            raise FileNotFoundError(f"The file {self.file_path} does not exist.")
+        except FileNotFoundError as e:
+            raise FileNotFoundError(f"The file {self.file_path} does not exist.") from e
 
         try:
             tree = ast.parse(content)
         except SyntaxError as e:
-            raise SyntaxError(f"Invalid Python syntax in {self.file_path}: {str(e)}")
+            raise SyntaxError(
+                f"Invalid Python syntax in {self.file_path}: {str(e)}"
+            ) from e
 
         class_definitions = []
 
@@ -122,6 +137,20 @@ class PythonClassManager:
                         default=node.lineno,
                     ),
                 )
+
+                # Read in the lines of the class definition
+                lines_from_extracted = self.content.splitlines()[
+                    start_line - 1 : end_line
+                ]
+
+                # Check if the class definition contains any MagicMock, patch, or other
+                # unittest.mock related imports
+                if any(
+                    "unittest.mock" in line or "MagicMock" in line or "patch" in line
+                    for line in lines_from_extracted
+                ):
+                    return []
+
                 class_definitions.append((node.name, start_line, end_line))
 
         return class_definitions

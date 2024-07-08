@@ -14,26 +14,18 @@ from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
 
 from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import (
-    CoverageParsingError,
     ParseUnitTestCoverage,
 )
 from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+from code_autoeval.llm_model.utils.model.custom_exceptions import (
+    CoverageParsingError,
+    FormattingError,
+    MissingCoverageException,
+)
 from code_autoeval.llm_model.utils.model.function_attributes import FunctionAttributes
 from code_autoeval.llm_model.utils.preprocess_code_before_execution import (
     PreProcessCodeBeforeExecution,
 )
-
-
-class FormattingError(Exception):
-    pass
-
-
-class NoTestsInPytestFile(Exception):
-    pass
-
-
-class MissingCoverageException(BaseException):
-    pass
 
 
 class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
@@ -44,7 +36,6 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         self,
         function_attributes: FunctionAttributes,
         df: pd.DataFrame,
-        debug: bool = False,
         class_model: Optional[ClassDataModel] = None,
         attempt: int = 0,
         error_message: str = "",
@@ -63,7 +54,6 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
                 function_attributes.module_absolute_path,
                 function_attributes.test_absolute_file_path,
                 df,
-                debug=debug,
                 class_model=class_model,
             ):
                 raise MissingCoverageException("Tests failed or coverage is not 100%")
@@ -168,7 +158,6 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         file_path: Path,
         test_file_path: Path,
         df: Optional[pd.DataFrame] = None,
-        debug: bool = False,
         class_model: Optional[ClassDataModel] = None,
     ) -> Dict[str, Any]:
         # Get the absolute path from the project root

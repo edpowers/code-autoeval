@@ -1,0 +1,5 @@
+import pytest
+from generated_code.fixtures.fixtures.validateregexes_fixture import fixture_mock_validateregexes
+from code_autoeval.llm_model.utils.validation.validate_regexes import ValidateRegexes
+def test_mock_validateregexes(fixture_mock_validateregexes):
+    assert isinstance(fixture_mock_validateregexes, ValidateRegexes)

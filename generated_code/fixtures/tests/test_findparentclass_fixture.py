@@ -1,0 +1,5 @@
+import pytest
+from generated_code.fixtures.fixtures.findparentclass_fixture import fixture_mock_findparentclass
+from code_autoeval.llm_model.utils.find_parent_class import FindParentClass
+def test_mock_findparentclass(fixture_mock_findparentclass):
+    assert isinstance(fixture_mock_findparentclass, FindParentClass)

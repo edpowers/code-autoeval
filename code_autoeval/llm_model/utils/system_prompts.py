@@ -49,75 +49,102 @@ class SystemPrompts:
         Function Body:
         {function_attributes.function_body}
 
+        The function body should not be returned in the output. It should be used for
+        creating the pytest tests.
+
         If there are base classes, initialization parameters, or class attributes,
         please mock all of the dependencies so that we can properly unit test.
         Use unittest.mock or any other pytest.patch method to mock these dependencies.
 
         Please use the following relative path provided for all mocking:
-        {class_model.absolute_path}
+        Class Name: {class_model.class_name}
+        Base Classes: {class_model.base_classes}
+        Initialization Parameters: {class_model.init_params}
+        Class Attributes: {class_model.class_attributes}
 
-        Function Base Classes:
-        {class_model.base_classes}
-
-        Initialization Parameters:
-        {class_model.init_params}
-
-        Class Attributes:
-        {class_model.class_attributes}
 
         Mocking __init__ functions should return None, like the following:
-        @patch("code_autoeval.llm_model.llm_model.LLMModel.__init__", return_value=None)
+        {self.provide_init_mocking_example(
+            class_model.class_name,
+            str(class_model.module_absolute_path)
+        )}
 
         2. Task: {query} - with {goal}
 
         {self.return_analyis_and_guidelines()}
 
-        if {function_attributes.is_coroutine=}, then use pytest-asyncio to test async functions.
-        For example:
-        @pytest.mark.asyncio
-        async def test_async_function():
-            result = await your_async_function()
-            assert result == expected_value
+        5 Test Case Structure:
+        {self.provide_async_or_sync_mocking_structure(
+            function_attributes.is_coroutine,
+            class_model.class_name,
+            function_attributes.func_name)
+        }
 
-        5. Output Format:
-        - Provide a brief analysis of the function (2-3 sentences).
-        - Then, provide the pytest tests.
-
+        6. Output Format:
         Example of expected response format:
+        {self.return_example_output(create_function=False, create_pytests=True, is_async=function_attributes.is_coroutine)}
+        """
 
-        ```python
-        # Expected Output: 7
+    def provide_init_mocking_example(self, class_name: str, module_path: str) -> str:
+        return f"""
+        For mocking __init__ of regular classes, use patch:
 
-        import pytest
-        import pandas as pd
-        import numpy as np
+        @pytest.fixture
+        def mock_{class_name.lower()}():
+            with patch('{module_path}.{class_name}.__init__', return_value=None) as mock_init:
+                instance = {class_name}()
+                yield instance
 
-        def example_func_provided(arg1: int, arg2: int) -> int:
-            # Your code here
-            result = arg1 + arg2
-            return result
+        def test_{class_name.lower()}_init(mock_{class_name.lower()}):
+            assert isinstance(mock_{class_name.lower()}, {class_name})
+            mock_{class_name.lower()}.__init__.assert_called_once()
+        """
 
-        # Test the function
-        print(example_func_provided(3, 4))
+    def provide_async_or_sync_mocking_structure(
+        self, is_coroutine: bool, class_name: str, func_name: str
+    ) -> str:
+        if is_coroutine:
+            return f"""
+            For mocking coroutines, use AsyncMock:
 
-        ##################################################
-        # TESTS
-        ##################################################
+            @pytest.fixture
+            def mock_{func_name}():
+                with patch(f'path.to.{class_name}.{func_name}') as mock:
+                    mock.return_value = AsyncMock()
+                    yield mock
 
-        def test_normal_case():
-            # Test normal use case
-            assert function_name(normal_args) == expected_output
+            @pytest.mark.asyncio
+            async def test_{func_name}(mock_{func_name}):
+                # Arrange
+                mock_{func_name}.return_value.return_value = 'expected_result'
 
-        def test_edge_case_1():
-            # Test an edge case
-            assert function_name(edge_case_args) == expected_edge_output
+                # Act
+                result = await {class_name}().{func_name}()
 
-        def test_error_condition():
-            # Test an error condition
-            with pytest.raises(ExpectedErrorType):
-                function_name(error_inducing_args)
+                # Assert
+                assert result == 'expected_result'
+                mock_{func_name}.assert_called_once()
+            """
+        else:
+            return f"""
+        For mocking regular functions, use MagicMock:
 
-        # Add more tests to ensure 100% coverage
+        @pytest.fixture
+        def mock_{func_name}():
+            with patch(f'path.to.{class_name}.{func_name}') as mock:
+                mock.return_value = MagicMock()
+                yield mock
+
+        def test_{func_name}(mock_{func_name}):
+            # Arrange
+            mock_{func_name}.return_value.return_value = 'expected_result'
+
+            # Act
+            result = {class_name}().{func_name}()
+
+            # Assert
+            assert result == 'expected_result'
+            mock_{func_name}.assert_called_once()
         """
 
     def generate_system_prompt_no_existing_function(
@@ -144,53 +171,7 @@ class SystemPrompts:
 
         Example of expected response format:
 
-        ```python
-        # Expected Output: 7
-
-        import pandas as pd
-        import numpy as np
-
-        def example_func(arg1: int, arg2: int) -> int:
-            # Your code here
-            result = arg1 + arg2
-            return result
-
-        class TestExampleFunc:
-            def test_normal_case(self):
-                assert example_func(3, 4) == 7
-
-            def test_edge_case(self):
-                assert example_func(-2, -3) == -5
-
-            def test_zero(self):
-                assert example_func(0, 0) == 0
-
-        # Test the function
-        print(example_func(3, 4))
-
-        print(TestExampleFunc().test_normal_case())
-
-        # Tests
-        import pytest
-
-        def test_positive_numbers():
-            assert example_func(3, 4) == 7
-
-        def test_negative_numbers():
-            assert example_func(-2, -3) == -5
-
-        def test_zero():
-            assert example_func(0, 0) == 0
-
-        def test_large_numbers():
-            assert example_func(1000000, 2000000) == 3000000
-
-        def test_type_error():
-            with pytest.raises(TypeError):
-                example_func("3", 4)
-
-        def test_class_normal_case():
-            assert TestExampleFunc().test_normal_case() == None
+        {self.return_example_output(create_function=True, create_pytests=True)}
 
         Remember to provide the main function implementation, expected output, and pytest tests as described above.
         Ensure 100% code coverage for the function being tested."""
@@ -301,6 +282,7 @@ class SystemPrompts:
         - Include proper error handling if appropriate.
         - Add brief, inline comments for clarity if needed.
         - If any of the function args are pandas.DataFrame, pandas.Series, verify the index.
+        - Use absolute imports for all import statements.
 
         4. Test Generation Guidelines:
         - Create pytest tests for the function.
@@ -327,6 +309,262 @@ class SystemPrompts:
         9. Do not use any fixtures that are not explicitly defined within the test file or imported from a known source. Specifically:
             - Do not use a 'setup' fixture unless you define it in the test file.
             - Do not use a 'mock_init' fixture unless you explicitly define it.
+            - Do not use a 'mock_subprocess_run' unless you define it in the test file.
             - If you need setup or teardown operations, include them directly in the test functions or use pytest's built-in fixtures like 'tmp_path' or 'capsys'.
             - If mocking is required, create the mocks within each test function using pytest.mock.patch as a decorator or context manager.
         """
+
+    @staticmethod
+    def return_example_output(
+        create_function: bool = False,
+        create_pytests: bool = False,
+        is_async: bool = False,
+    ) -> str:
+        """Return the example output for either async or sync functions."""
+        example_output = ""
+
+        if create_function:
+            if is_async:
+                example_output += """
+        ```python
+        # Expected Output: 7
+        import pandas as pd
+        import numpy as np
+        import asyncio
+
+        async def example_async_func(arg1: int, arg2: int) -> int:
+            # Simulating some async operation
+            await asyncio.sleep(0.1)
+            result = arg1 + arg2
+            return result
+
+        class TestExampleAsyncFunc:
+            @pytest.mark.asyncio
+            async def test_normal_case(self):
+                assert await example_async_func(3, 4) == 7
+
+            @pytest.mark.asyncio
+            async def test_edge_case(self):
+                assert await example_async_func(-2, -3) == -5
+
+            @pytest.mark.asyncio
+            async def test_zero(self):
+                assert await example_async_func(0, 0) == 0
+        """
+        else:
+            example_output += """
+            # Expected Output: 7
+        import pandas as pd
+        import numpy as np
+
+        def example_func(arg1: int, arg2: int) -> int:
+            # Your code here
+            result = arg1 + arg2
+            return result
+
+        class TestExampleFunc:
+            def test_normal_case(self):
+                assert example_func(3, 4) == 7
+
+            def test_edge_case(self):
+                assert example_func(-2, -3) == -5
+
+            def test_zero(self):
+                assert example_func(0, 0) == 0
+        """
+
+        if create_pytests:
+            if is_async:
+                example_output += """
+        Test the async function
+        import pytest
+        import asyncio
+
+        @pytest.mark.asyncio
+        async def test_positive_numbers():
+            assert await example_async_func(3, 4) == 7
+
+        @pytest.mark.asyncio
+        async def test_negative_numbers():
+            assert await example_async_func(-2, -3) == -5
+
+        @pytest.mark.asyncio
+        async def test_zero():
+            assert await example_async_func(0, 0) == 0
+
+        @pytest.mark.asyncio
+        async def test_large_numbers():
+            assert await example_async_func(1000000, 2000000) == 3000000
+
+        @pytest.mark.asyncio
+        async def test_type_error():
+            with pytest.raises(TypeError):
+                await example_async_func("3", 4)
+
+        @pytest.mark.asyncio
+        async def test_class_normal_case():
+            test_instance = TestExampleAsyncFunc()
+            await test_instance.test_normal_case()
+
+        To run these tests, use: pytest --asyncio-mode=auto test_file.py
+        Remember to provide the main async function implementation, expected output, and pytest tests as described above.
+        Ensure 100% code coverage for the async function being tested.
+        """
+            else:
+                example_output += """
+                Test the function
+                print(example_func(3, 4))
+                print(TestExampleFunc().test_normal_case())
+
+                # Tests
+
+                import pytest
+
+                def test_positive_numbers():
+                    assert example_func(3, 4) == 7
+
+                def test_negative_numbers():
+                    assert example_func(-2, -3) == -5
+
+                def test_zero():
+                    assert example_func(0, 0) == 0
+
+                def test_large_numbers():
+                    assert example_func(1000000, 2000000) == 3000000
+
+                def test_type_error():
+                    with pytest.raises(TypeError):
+                        example_func("3", 4)
+
+                def test_class_normal_case():
+                    assert TestExampleFunc().test_normal_case() == None
+
+                Remember to provide the main function implementation, expected output, and pytest tests as described above.
+                Ensure 100% code coverage for the function being tested.
+                """
+
+        return example_output
+
+    @staticmethod
+    def _return_example_output(
+        create_function: bool = False, create_pytests: bool = False
+    ) -> str:
+        """Return the example output."""
+        example_output = ""
+        if create_function:
+            example_output += """
+            ```python
+            # Expected Output: 7
+
+            import pandas as pd
+            import numpy as np
+
+            def example_func(arg1: int, arg2: int) -> int:
+                # Your code here
+                result = arg1 + arg2
+                return result
+
+            class TestExampleFunc:
+                def test_normal_case(self):
+                    assert example_func(3, 4) == 7
+
+                def test_edge_case(self):
+                    assert example_func(-2, -3) == -5
+
+                def test_zero(self):
+                    assert example_func(0, 0) == 0
+            """
+
+        if create_pytests:
+            example_output += """
+            # Test the function
+            print(example_func(3, 4))
+
+            print(TestExampleFunc().test_normal_case())
+
+            # Tests
+            import pytest
+
+            def test_positive_numbers():
+                assert example_func(3, 4) == 7
+
+            def test_negative_numbers():
+                assert example_func(-2, -3) == -5
+
+            def test_zero():
+                assert example_func(0, 0) == 0
+
+            def test_large_numbers():
+                assert example_func(1000000, 2000000) == 3000000
+
+            def test_type_error():
+                with pytest.raises(TypeError):
+                    example_func("3", 4)
+
+            def test_class_normal_case():
+                assert TestExampleFunc().test_normal_case() == None
+
+            Remember to provide the main function implementation, expected output, and pytest tests as described above.
+            Ensure 100% code coverage for the function being tested.
+            """
+
+        return example_output
+
+    def generate_prompt_for_mock_hierarchy(
+        self, class_hierarchy: Dict[str, Any]
+    ) -> str:
+        """Generate the prompt for mock hierarchy construction."""
+        return f"""
+        You are an expert Python developer specializing in creating robust testing infrastructures.
+        Your task is to create a pytest conftest.py file that defines a hierarchy of mocked classes
+        for use in unit tests across a project with complex class inheritance.
+
+        Follow these instructions carefully:
+
+        1. Class Hierarchy:
+        The following is a dictionary representing the class hierarchy of the project.
+        Each key is a class name, and its value is a dictionary containing information about the class:
+
+        {class_hierarchy}
+
+        2. Task:
+        Create a pytest conftest.py file that defines fixtures for mocked versions of each class in the hierarchy.
+        Start with classes that have no parent classes, then proceed to classes that inherit from those, and so on.
+
+        3. Guidelines:
+        - Use pytest fixtures to define each mocked class.
+        - Use unittest.mock.MagicMock or pytest.mock.MagicMock as the base for each mock.
+        - For each class, mock all methods and attributes defined in the class_info.
+        - If a class has parent classes, ensure the mock inherits from the mocked parent classes.
+        - Use the @pytest.fixture decorator for each mock, with an appropriate scope (usually 'function' or 'class').
+        - Provide type hints for all fixtures.
+        - Add docstrings to each fixture explaining its purpose and usage.
+
+        4. Example Structure:
+        ```python
+        import pytest
+        from unittest.mock import MagicMock
+
+        @pytest.fixture
+        def mock_base_class():
+            class MockBaseClass(MagicMock):
+                # Mock methods and attributes
+            return MockBaseClass()
+
+        @pytest.fixture
+        def mock_derived_class(mock_base_class):
+            class MockDerivedClass(MagicMock):
+                # Mock methods and attributes
+            mock = MockDerivedClass()
+            mock.__class__ = mock_base_class.__class__  # Simulate inheritance
+            return mock
+
+        5. Output:
+        Provide the complete content of the conftest.py file, including all necessary imports and fixtures.
+
+        6. Additional Notes:
+        Ensure that the mocking strategy allows for easy customization in specific tests.
+        Consider using parameterized fixtures if multiple classes share similar mocking needs.
+        Provide comments explaining any complex mocking setups or inheritance simulations.
+
+        Remember, the goal is to create a flexible and maintainable set of mocks that can be easily used across all unit tests in the project."""

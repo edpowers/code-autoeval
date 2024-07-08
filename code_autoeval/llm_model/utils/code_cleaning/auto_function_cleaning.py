@@ -10,6 +10,37 @@ from code_autoeval.llm_model.utils.logging_statements.logging_statements import 
 )
 
 
+class FileCleaner(ast.NodeTransformer):
+    def __init__(self, cleaner: "AutoFunctionCleaning"):
+        self.cleaner = cleaner
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+        # Extract the function's source code
+        func_source = astor.to_source(node)
+        # Clean the function
+        cleaned_func_source = self.cleaner._remove_unused_arguments(func_source)
+        return ast.parse(cleaned_func_source).body[0]
+
+
+class UnusedArgumentRemover(ast.NodeTransformer):
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
+        # Get all argument names
+        arg_names = {arg.arg for arg in node.args.args}
+
+        used_names = {
+            child.id
+            for child in ast.walk(node)
+            if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
+        }
+        # Determine unused arguments
+        unused_args = arg_names - used_names
+
+        # Remove unused arguments
+        node.args.args = [arg for arg in node.args.args if arg.arg not in unused_args]
+
+        return node
+
+
 class AutoFunctionCleaning(LoggingStatements):
 
     def clean_func_args_from_lines(self, code_lines: List[str]) -> List[str]:
@@ -24,18 +55,6 @@ class AutoFunctionCleaning(LoggingStatements):
 
     def clean_func_args_from_file(self, file_content: str) -> str:
         """Clean a file by removing unused arguments from functions."""
-
-        class FileCleaner(ast.NodeTransformer):
-            def __init__(self, cleaner: "AutoFunctionCleaning"):
-                self.cleaner = cleaner
-
-            def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
-                # Extract the function's source code
-                func_source = astor.to_source(node)
-                # Clean the function
-                cleaned_func_source = self.cleaner._remove_unused_arguments(func_source)
-                return ast.parse(cleaned_func_source).body[0]
-
         # Parse the entire file content into an AST
         tree = ast.parse(file_content)
 
@@ -47,27 +66,6 @@ class AutoFunctionCleaning(LoggingStatements):
 
     def _remove_unused_arguments(self, source_code: str) -> str:
         """Remove unused arguments from a function."""
-
-        class UnusedArgumentRemover(ast.NodeTransformer):
-            def visit_FunctionDef(self, node: ast.FunctionDef) -> ast.FunctionDef:
-                # Get all argument names
-                arg_names = {arg.arg for arg in node.args.args}
-
-                used_names = {
-                    child.id
-                    for child in ast.walk(node)
-                    if isinstance(child, ast.Name) and isinstance(child.ctx, ast.Load)
-                }
-                # Determine unused arguments
-                unused_args = arg_names - used_names
-
-                # Remove unused arguments
-                node.args.args = [
-                    arg for arg in node.args.args if arg.arg not in unused_args
-                ]
-
-                return node
-
         # Parse the source code into an AST
         tree = ast.parse(source_code)
 

@@ -1,7 +1,9 @@
 """Stream the response from the backend model."""
 
 import json
-from typing import Any, AsyncIterator, Dict
+import re
+from pprint import pprint
+from typing import Any, AsyncIterator, Dict, Tuple
 
 import httpx
 
@@ -77,20 +79,72 @@ class StreamResponse(BaseLLMClass):
                 "POST", url, json=payload, timeout=timeout
             ) as response:
                 if response.status_code != 200:
+                    error_content = await response.aread()  # Read the entire response
                     raise Exception(
-                        f"Error: {response.status_code}, {await response.text()}"
+                        f"Error: {response.status_code}, {error_content.decode()}"
                     )
 
-                async for line in response.aiter_lines():
-                    if line:
-                        try:
-                            chunk = json.loads(line)
-                            yield chunk
-                            if chunk.get("done"):
-                                break
-                        except json.JSONDecodeError as jde:
-                            print(f"{line=}")
-                            print(f"Error decoding JSON: {jde=}", line)
-                            continue
-                    else:
-                        print("No line received")
+                buffer = b""
+                async for chunk in response.aiter_bytes():
+                    buffer += chunk
+                    while b"\n" in buffer:
+                        line, buffer = buffer.split(b"\n", 1)
+                        if line:
+                            try:
+                                yield json.loads(line.decode())
+                            except json.JSONDecodeError as jde:
+                                print(f"Error decoding JSON: {jde}", line.decode())
+                                continue
+
+                if buffer:
+                    try:
+                        yield json.loads(buffer.decode())
+                    except json.JSONDecodeError as jde:
+                        print(f"Error decoding JSON: {jde}", buffer.decode())
+
+    def figure_out_model_response(self, response: Any) -> str:
+        """
+        Extract the content from the model's response.
+        """
+        if isinstance(response, str):
+            return response
+        elif isinstance(response, dict):
+            if "response" in response:
+                return response["response"]
+            elif "content" in response:
+                return response["content"]
+        raise ValueError(f"Unexpected response format from the model: {response}")
+
+    def split_content_from_model(
+        self,
+        content: str,
+    ) -> Tuple[str, str]:
+        # Search for # Tests or 'pytest tests' in code:
+        if not re.search("# Test|pytest tests|test", content):
+            pprint(content)
+            raise ValueError(
+                "No '# Tests' provided in the model response. Unable to parse regex."
+            )
+
+        # Define the minimum character count (you can change this value as needed)
+        min_char_count = 500
+        # Modified regex pattern
+        pattern = r"```(?:python)?(.{" + str(min_char_count) + r",}?)```"
+        if code_blocks := re.findall(pattern, content, re.DOTALL):
+            print(f"{code_blocks}", "Code blocks:")
+            # If the code blocks are each longer than 500 characters:
+            # Combine all code blocks, each separated by a newline
+            code = "\n\n".join(block.strip() for block in code_blocks)
+        else:
+            code = content
+
+        # Look for any class definitions. If not found, then just return the code and pytest_tests as the same.
+        class_def_exists = re.search(r"class [A-Z]{5,}", code)
+        if not class_def_exists:
+            return code.strip(), code.strip()
+
+        if "### Explanation:" in code:
+            code_parts = re.split(r"### Explanation:", code, maxsplit=1)
+            code = code_parts[0]
+
+        return code.strip(), code.strip()

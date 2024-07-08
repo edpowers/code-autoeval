@@ -1,0 +1,5 @@
+import pytest
+from generated_code.fixtures.fixtures.basemodelconfig_fixture import fixture_mock_basemodelconfig
+from code_autoeval.llm_model.utils.base_llm_class import BaseModelConfig
+def test_mock_basemodelconfig(fixture_mock_basemodelconfig):
+    assert isinstance(fixture_mock_basemodelconfig, BaseModelConfig)

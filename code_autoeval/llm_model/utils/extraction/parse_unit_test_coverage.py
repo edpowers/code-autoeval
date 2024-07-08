@@ -7,10 +7,7 @@ from typing import Dict, List, Optional, Tuple
 from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
     LoggingStatements,
 )
-
-
-class CoverageParsingError(Exception):
-    pass
+from code_autoeval.llm_model.utils.model.custom_exceptions import CoverageParsingError
 
 
 class ParseUnitTestCoverage(LoggingStatements):

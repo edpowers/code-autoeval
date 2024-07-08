@@ -9,3 +9,6 @@ __pycache__/
 .ruff_cache
 
 .venv*
+
+generated_code/code_autoeval
+generated_code_logs/*

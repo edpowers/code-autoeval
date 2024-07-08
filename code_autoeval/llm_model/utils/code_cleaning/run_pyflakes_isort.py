@@ -46,24 +46,6 @@ class RunPyflakesIsort(LoggingStatements):
                 code = self.remove_unused_imports(code, unused_imports)
                 was_modified = True
 
-        # Add necessary imports if class_model is provided
-        # if class_model:
-        #    code, import_added = self.add_class_import(code, class_model)
-        #    was_modified = was_modified or import_added
-        #
-        #    self._log_code(code, "Code after adding class import: ")
-        # else:
-        #    self._log_code(
-        #        "No valid class model passed", "Skipping adding class import:"
-        #    )
-
-        # Enforce max line length
-        # lines = code.splitlines()
-        # processed_lines = [line for line in lines if len(line) <= max_line_length]
-
-        # if len(processed_lines) != len(lines):
-        #    was_modified = True
-
         Path("temp_file.py").unlink()  # Remove temporary file
 
         return code, was_modified
@@ -79,10 +61,11 @@ class RunPyflakesIsort(LoggingStatements):
 
     def remove_unused_imports(self, code: str, unused_imports: list) -> str:
         lines = code.splitlines()
-        new_lines = []
-        for line in lines:
-            if not any(f"import {imp}" in line for imp in unused_imports):
-                new_lines.append(line)
+        new_lines = [
+            line
+            for line in lines
+            if all(f"import {imp}" not in line for imp in unused_imports)
+        ]
         return "\n".join(new_lines)
 
     def add_class_import(

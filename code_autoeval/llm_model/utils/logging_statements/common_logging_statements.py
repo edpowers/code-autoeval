@@ -16,7 +16,7 @@ class CommonLoggingStatements(BaseLLMClass):
         """Log the max retries."""
         # If we've exhausted all retries
         if self.init_kwargs.verbose:
-            print(
+            self.common.class_logger.debug(
                 f"Failed to generate correct code with 100% coverage after {max_retries} attempts."
             )
 
@@ -28,25 +28,27 @@ class CommonLoggingStatements(BaseLLMClass):
         if self.init_kwargs.debug:
             display(pprint(coverage_result))
 
+            self.common.class_logger.debug(
+                f"Coverage results: {coverage_result.stdout}"
+            )
+
             if coverage_result.stderr:
-                print("Errors:")
+                self.common.class_logger.debug(
+                    f"Coverage errors: {coverage_result.stderr}"
+                )
                 display(pprint(coverage_result.stderr))
 
     def _log_test_coverage_path(self, test_coverage_path: Union[str, Path]) -> None:
         """Log the test coverage path."""
         if self.init_kwargs.debug:
-            print(f"Test coverage path: {test_coverage_path}")
+            self.common.class_logger.debug(f"Test coverage path: {test_coverage_path}")
 
     def _log_fake_gen_data(self, fake_data: Any) -> None:
         """Log the fake gen data path."""
         if self.init_kwargs.debug:
-            print("\nGenerated fake DataFrame:")
-            print(fake_data)
-            print()
+            self.common.class_logger.debug(f"Generated fake DataFrame: {fake_data}")
 
     def _log_code(self, code: str, intro_message: str = "Generated Code") -> None:
         """Log the generated code."""
         if self.init_kwargs.debug:
-            print(f"\n{intro_message}")
-            print(code)
-            print()
+            self.common.class_logger.debug(f"{intro_message}\n{code}")

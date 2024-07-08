@@ -1,5 +1,6 @@
 """Base class."""
 
+import logging
 import os
 from pathlib import Path
 from typing import Any, Dict
@@ -7,6 +8,23 @@ from typing import Any, Dict
 from dotenv import find_dotenv, load_dotenv
 from multiuse.filepaths.find_project_root import FindProjectRoot
 from pydantic import BaseModel, Field
+
+__all__ = [
+    "BaseModelConfig",
+    "LLMModelAttributes",
+    "CommonAttributes",
+    "ModelAttributesFactory",
+    "CommonAttributesFactory",
+    "InitKwargs",
+    "BaseLLMClass",
+]
+
+
+class BaseModelConfig(BaseModel):
+    """Base model configuration."""
+
+    class Config:
+        arbitrary_types_allowed = True
 
 
 class LLMModelAttributes(BaseModel):
@@ -16,11 +34,13 @@ class LLMModelAttributes(BaseModel):
     llm_model_url: str = ""
 
 
-class CommonAttributes(BaseModel):
+class CommonAttributes(BaseModelConfig):
     """Common attributes for all classes."""
 
     project_root: Path
     generated_base_dir: Path
+    generated_base_log_dir: Path  # For storing logs in each of the functions.
+    class_logger: logging.Logger
 
 
 class ModelAttributesFactory(BaseModel):
@@ -45,8 +65,12 @@ class CommonAttributesFactory(BaseModel):
         assert project_root.exists()
 
         generated_base_dir = project_root.joinpath("generated_code")
+        generated_base_log_dir = project_root.joinpath("generated_code_logs")
         return CommonAttributes(
-            project_root=project_root, generated_base_dir=generated_base_dir
+            project_root=project_root,
+            generated_base_dir=generated_base_dir,
+            generated_base_log_dir=generated_base_log_dir,
+            class_logger=logging.getLogger(__name__),
         )
 
 
@@ -57,7 +81,7 @@ class InitKwargs(BaseModel):
     func_name: str
 
 
-class BaseLLMClass(BaseModel):
+class BaseLLMClass(BaseModelConfig):
     """Base class."""
 
     coverage_result: Any = None  # subprocess completed process
@@ -78,6 +102,3 @@ class BaseLLMClass(BaseModel):
 
     def __init___(self, **kwargs: InitKwargs) -> None:
         super().__init__(**kwargs)
-
-    class Config:
-        arbitrary_types_allowed = True

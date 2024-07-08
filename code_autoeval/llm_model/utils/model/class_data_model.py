@@ -2,10 +2,12 @@
 
 import importlib
 import inspect
+import logging
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from multiuse.filepaths.system_utils import SystemUtils
+from multiuse.log_methods.setup_logger import SetupLogger
 from pydantic import Field
 
 from code_autoeval.llm_model.utils.model.pretty_print_base_model import (
@@ -32,11 +34,29 @@ class ClassDataModel(PrettyPrintBaseModel):
         None, description="Relative path from the project root to the module file"
     )
 
+    log_path: Path = Field(None, description="Path to the log file for the class")
+    logger_name: str = Field(None, description="Name of the logger for the class")
+    class_logger: logging.Logger = Field(None, description="Logger for the class")
+
+    class Config:
+        """Pydantic configuration."""
+
+        arbitrary_types_allowed = True
+
 
 class ClassDataModelFactory:
 
     def __init__(self, project_root: Path) -> None:
         self.project_root = project_root
+        self.class_data_models: List[ClassDataModel] = []
+
+    def find_class_info(self, class_name: str) -> ClassDataModel:
+        """Helper method to find a class in the class data models."""
+        for class_data in self.class_data_models:
+            if class_data.class_name == class_name:
+                return class_data
+
+        raise KeyError(f"Class '{class_name}' not found in class data models")
 
     def create_from_class_info(
         self, class_info: Dict[str, List[Tuple[str, str, List[str]]]]
@@ -45,9 +65,6 @@ class ClassDataModelFactory:
 
         for file_path, classes in class_info.items():
             for class_name, import_path, function_names in classes:
-                if not function_names:
-                    print(f"Skipping: No functions to implement for {classes}")
-                    continue
 
                 print(f"Generating code for class: {class_name} from {file_path}")
 
@@ -60,6 +77,20 @@ class ClassDataModelFactory:
                     )
                     # Create the relative path from the project root
                     relative_path = module_path.relative_to(self.project_root)
+
+                    generated_log_path = (
+                        self.project_root.joinpath("generated_code_logs")
+                        .joinpath(relative_path)
+                        .joinpath(f"{class_name}.log")
+                    )
+
+                    logger_name = f"{class_name}_logger"
+
+                    class_logger = SetupLogger.setup_logger(
+                        logger_name,
+                        logging_path=generated_log_path,
+                        log_level=logging.DEBUG,
+                    )
 
                     class_model = ClassDataModel(
                         class_object=class_to_process,
@@ -80,12 +111,17 @@ class ClassDataModelFactory:
                         ),
                         module_absolute_path=module_path,
                         module_relative_path=relative_path,
+                        log_path=generated_log_path,
+                        logger_name=logger_name,
+                        class_logger=class_logger,
                     )
 
                     class_data_models.append(class_model)
 
                 except Exception as e:
                     print(f"Error processing class {class_name}: {str(e)}")
+
+        self.class_data_models = class_data_models
 
         return class_data_models
 
@@ -104,7 +140,11 @@ class ClassDataModelFactory:
         return [
             name
             for name in dir(class_to_process)
-            if not name.startswith("__")
+            if (
+                not name.startswith("__")
+                and not name.startswith("model")
+                and name not in {"_abc_impl"}
+            )
             and not callable(getattr(class_to_process, name))
         ]
 

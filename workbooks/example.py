@@ -3,21 +3,369 @@
 # %%
 
 import asyncio
+import sys
 from abc import ABC, abstractmethod
+from pathlib import Path
 from pprint import pprint
+from typing import Dict
 
 import nest_asyncio
-import pandas as pd
-
-from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
-    ExtractImportsFromFile,
-)
 
 nest_asyncio.apply()
 
-from code_autoeval.llm_model.llm_model import LLMModel
+import pandas as pd
+from multiuse.filepaths.find_classes_in_dir import FindClassesInDir
+from multiuse.filepaths.find_project_root import FindProjectRoot
+from multiuse.filepaths.system_utils import SystemUtils
 
-llm_model_client = LLMModel()
+from code_autoeval.llm_model.hierarchy.creation import create_class_hierarchy
+from code_autoeval.llm_model.hierarchy.filtration import filter_class_hierarchy
+from code_autoeval.llm_model.hierarchy.fixture_generation.fixture_generator import (
+    FixtureGenerator,
+)
+from code_autoeval.llm_model.utils import extraction
+from code_autoeval.llm_model.utils.base_llm_class import BaseLLMClass
+from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModelFactory
+from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
+
+
+def test_function():
+    pass
+
+
+# %%
+
+created_hierarchy = (
+    create_class_hierarchy.CreateClassHierarchy.construct_class_hierarchy()
+)
+
+# %%
+
+
+created_hierarchy.class_hierarchy["LLMModelAttributes"]
+
+# %%
+
+
+created_hierarchy.filtered_hierarchy["LLMModelAttributes"]
+
+
+# %%
+
+# Format mock classes for the prompt
+# formatted_classes = format_mock_classes_for_prompt(mock_classes, filtered_hierarchy)
+
+
+# Create fixtures for other classes as needed
+
+# %%
+
+# Example usage
+module_path = Path(SystemUtils.get_class_file_path(test_function))
+
+# Find the project root
+project_root = FindProjectRoot.find_project_root(module_path)
+directory = project_root.joinpath("code_autoeval")
+
+unique_project_imports = (
+    extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+)
+
+all_class_info = FindClassesInDir.find_classes_in_dir(directory)
+
+class_data_factory = ClassDataModelFactory(project_root)
+class_data_models = class_data_factory.create_from_class_info(all_class_info)
+
+# %%
+
+
+# %%
+
+filter_hierarchy_classes = filter_class_hierarchy.FilterClassHierarchy()
+filter_hierarchy_classes.build_hierarchy_levels(created_hierarchy.filtered_hierarchy)
+hierarchy_levels = filter_hierarchy_classes.get_hierarchy_levels()
+filter_hierarchy_classes.print_hierarchy_levels(hierarchy_levels)
+
+# %%
+
+unique_project_imports["BaseModelConfig"]
+
+# %%
+
+
+async def main() -> None:
+    fixture_gen = FixtureGenerator(
+        stream_response=StreamResponse(),
+        class_hierarchy=hierarchy_levels,
+        class_data_factory=class_data_factory,
+        base_output_dir=str(project_root.joinpath("generated_code/fixtures").resolve()),
+        project_root=str(project_root),
+        clean_output_dir=True,
+    )
+
+    await fixture_gen.generate_all_fixtures()
+
+    # Run the main function
+
+
+nest_asyncio.apply()
+
+asyncio.run(main())
+
+# %%
+
+
+# %%
+
+IMPORT_BANK = {
+    "Path": "from pathlib import Path",
+    "logging": "import logging",
+    "datetime": "from datetime import datetime",
+    "json": "import json",
+    "re": "import re",
+    "os": "import os",
+    "sys": "import sys",
+    # Add more as needed
+}
+
+class_info = created_hierarchy.filtered_hierarchy["BaseLLMClass"]
+level = 4
+
+class_hierarchy = hierarchy_levels
+
+previous_levels = {l: class_hierarchy[l] for l in range(1, level)}
+
+
+def is_custom_class(cls: type) -> bool:
+    """
+    Determine if a class is a custom class (not builtin or from standard library).
+    """
+    if cls.__module__ == "builtins":
+        return False
+    if cls.__module__.startswith("pydantic"):
+        return False
+    return cls.__module__ not in sys.stdlib_module_names
+
+
+# Analyze class attributes to determine necessary imports
+necessary_imports = set()
+for attr_name, attr_type in class_info["attributes"].items():
+    attr_type_str = str(attr_type)
+    for type_key, import_statement in IMPORT_BANK.items():
+        if type_key in attr_type_str:
+            necessary_imports.add(import_statement)
+
+# Create a list of previously defined fixtures
+previous_fixtures = [
+    f"fixture_mock_{cls.lower()}"
+    for lvl in previous_levels.values()
+    for cls in lvl.keys()
+]
+
+# Identify which parent classes and dependencies have fixtures
+parent_fixtures = [
+    f"fixture_mock_{parent.__name__.lower()}"
+    for parent in class_info["parent_classes"]
+    if f"fixture_mock_{parent.__name__.lower()}" in previous_fixtures
+]
+parent_imports = [
+    f"from {parent.__module__} import {parent.__name__}"
+    for parent in class_info["parent_classes"]
+]
+
+dependency_fixtures = [
+    f"fixture_mock_{dep[1].__name__.lower()}"
+    for dep in class_info["dependencies"]
+    if is_custom_class(dep[1])
+    and f"fixture_mock_{dep[1].__name__.lower()}" in previous_fixtures
+]
+
+fixture_imports = [
+    f"from generated_code.fixtures.fixtures.{fixture.replace('fixture_mock_', '')}_fixture import {fixture}"
+    for fixture in parent_fixtures + dependency_fixtures
+]
+
+is_pydantic_model = "BaseModel" in [
+    parent.__name__ for parent in class_info["parent_classes"]
+]
+
+pprint(f"{necessary_imports=}")
+pprint(f"{parent_fixtures=}")
+pprint(f"{dependency_fixtures=}")
+pprint(f"{fixture_imports=}")
+pprint(f"{is_pydantic_model=}")
+
+
+pprint(f"{chr(10).join(sorted(necessary_imports))}")
+pprint(f"{chr(10).join(parent_imports)}")
+# - Include the following imports for previously defined fixtures:
+pprint(f"{chr(10).join(fixture_imports)}")
+
+# %%
+# %%
+
+
+def create_prompt_for_class_level(
+    level: int, classes: Dict[str, dict], previous_levels: Dict[int, Dict[str, dict]]
+) -> str:
+    prompt = f"""
+Using the base strategy provided, create pytest fixtures for the following classes at level {level} of the class hierarchy:
+
+"""
+    for class_name, class_info in classes.items():
+        prompt += f"""
+Class Name: {class_name}
+Parents: {[parent.__name__ for parent in class_info['parent_classes']]}
+Dependencies: {[dep[1].__name__ for dep in class_info['dependencies'] if filter_class_hierarchy.FilterClassHierarchy.is_custom_class(dep[1])]}
+Methods: {class_info['methods']}
+Attributes: {class_info['attributes']}
+
+Please provide:
+
+1. The fixture file content (fixtures/{class_name.lower()}_fixture.py)
+   - Include necessary imports
+   - Create a fixture function named mock_{class_name.lower()}
+   - Use MagicMock with the spec of the class
+   - Mock all methods listed for the class
+   - Set all attributes with appropriate default values
+   - For parent classes and dependencies, use the fixtures created in previous levels
+
+2. The test file content to verify the fixture (tests/test_{class_name.lower()}_fixture.py)
+   - Include necessary imports
+   - Create a test function that verifies:
+     a. The mock object is an instance of the class
+     b. All methods are present and can be called
+     c. All attributes are present and have appropriate default values
+     d. The object correctly inherits from its parent classes
+     e. Dependencies are properly mocked and accessible
+
+3. A brief explanation of what the fixture does, how it uses fixtures from previous levels, and how it can be used in testing
+
+Ensure the code is properly formatted, syntactically correct, and follows Python best practices.
+
+"""
+    return prompt
+
+
+def generate_prompts_for_all_levels(
+    hierarchy_levels: Dict[int, Dict[str, dict]]
+) -> Dict[int, str]:
+    prompts = {}
+    for level, classes in hierarchy_levels.items():
+        previous_levels = {l: hierarchy_levels[l] for l in range(1, level)}
+        prompts[level] = create_prompt_for_class_level(level, classes, previous_levels)
+    return prompts
+
+
+# Usage
+hierarchy_levels = filter_hierarchy_classes.get_hierarchy_levels()
+all_prompts = generate_prompts_for_all_levels(hierarchy_levels)
+
+for level, prompt in all_prompts.items():
+    print(f"Prompt for Level {level}:")
+    print(prompt)
+    print("-" * 80)
+
+
+# %%
+
+
+pprint(list(BaseLLMClass.__dict__.keys()))
+
+# %%
+
+
+BaseLLMClass.__dict__["model_fields"]
+
+
+# %%
+
+
+import inspect
+from typing import Any, Dict
+
+
+def _extract_class_hierarchy(class_object: object) -> Dict[str, Any]:
+    def get_class_info(cls: object) -> dict:
+        return {
+            "parent_classes": [
+                base.__name__
+                for base in cls.__bases__
+                if (base.__name__ not in {"object", "BaseModel"})
+            ],
+            "methods": [
+                name
+                for name, obj in inspect.getmembers(cls)
+                if inspect.isfunction(obj) and not name.startswith("__")
+            ],
+            "attributes": [
+                name
+                for name in cls.__dict__
+                if not name.startswith("__")
+                and not inspect.isfunction(cls.__dict__[name])
+            ]
+            + [name for name in cls.__dict__.get("model_fields", [])],
+        }
+
+    def traverse_hierarchy(cls: object) -> dict:
+        hierarchy = {cls.__name__: get_class_info(cls)}
+        for base in cls.__bases__:
+            if base.__name__ not in {"object", "BaseModel"}:
+                hierarchy.update(traverse_hierarchy(base))
+        return hierarchy
+
+    return traverse_hierarchy(class_object)
+
+
+def _filter_relevant_members(class_info: dict) -> dict:
+    pydantic_methods = {
+        "model_copy",
+        "model_dump",
+        "model_dump_json",
+        "model_post_init",
+        "copy",
+        "dict",
+        "json",
+        "_abc_impl",
+        "model_config",
+        "model_computed_fields",
+    }
+    pydantic_attributes = {"model_config", "model_fields", "model_computed_fields"}
+
+    relevant_methods = [
+        method
+        for method in class_info["methods"]
+        if not method.startswith("_")
+        and (method not in pydantic_methods and method not in pydantic_attributes)
+    ]
+    relevant_attributes = [
+        attr
+        for attr in class_info["attributes"]
+        if not attr.startswith("_")
+        and (attr not in pydantic_methods and attr not in pydantic_attributes)
+    ]
+
+    return {
+        "parent_classes": class_info["parent_classes"],
+        "methods": relevant_methods,
+        "attributes": relevant_attributes,
+    }
+
+
+extracted_hiearchy = _extract_class_hierarchy(LLMModelAttributes)
+
+print("Extracted Hierarchy:")
+pprint(extracted_hiearchy)
+
+filtered_hierarchy = extracted_hiearchy.copy()
+
+for class_name, class_info in extracted_hiearchy.items():
+    filtered_hierarchy[class_name] = _filter_relevant_members(class_info)
+
+
+print(f"Filtered Hierarchy:")
+pprint(filtered_hierarchy)
+
 
 # %%
 
@@ -209,11 +557,25 @@ subprocess.run(
 # %%
 
 
-example = "'You are an expert Python code generator. Your task is to create Python code that solves a specific problem using a provided function signature.\n        Follow these instructions carefully:\n\n        1. Function Details:\n        Function Name: LLMModel.__init__\n        Function is async coroutine: False\n        Signature: (**data: 'Any') -> 'None'\n        Docstring: Create a new model by parsing and validating input data from keyword arguments.\n\nRaises [`ValidationError`][pydantic_core.ValidationError] if the input data cannot be\nvalidated to form a valid model.\n\n`self` is explicitly positional-only to allow `self` as a field name.\n\n        2. Task: Implement the __init__ method for the LLMModel class. - with Refactor code to handle edge cases and improve efficiency.\n\n        3. Code Generation Guidelines:\n        - Implement the function according to the given signature.\n        - Ensure all function arguments have their types explicitly mentioned.\n        - Create any necessary additional code to solve the task.\n        - Ensure the code is efficient, readable, and follows Python best practices.\n        - Include proper error handling if appropriate.\n        - Add brief, inline comments for clarity if needed.\n        - If any of the function args are pandas.DataFrame, pandas.Series, verify the index.\n\n        4. Output Format:\n        - Provide the Python code.\n        - After the code, on a new line, write "  # Expected Output:" followed by the expected output of the function for the given task.\n        - The expected output should be a string representation of the result.\n\n        5. Pytest Tests:\n        - After providing the main function and expected output, create pytest tests for the function.\n        - Create at least 3 test functions covering different scenarios, including edge cases and potential error conditions.\n        - Ensure 100% code coverage for the function being tested.\n\n        When writing pytest tests, please adhere to the following guidelines:\n\n        1. Only use variables that are explicitly defined within each test function.\n        2. Avoid relying on global variables or undefined mocks.\n        3. If you need to mock a method or function, define the mock within the test function using pytest.mock.patch as a decorator or context manager.\n        4. Ensure that each test function is self-contained and does not depend on the state from other tests.\n        5. Use descriptive names for test functions that clearly indicate what is being tested.\n        6. Follow the Arrange-Act-Assert (AAA) pattern in your tests:\n        - Arrange: Set up the test data and conditions.\n        - Act: Perform the action being tested.\n        - Assert: Check that the results are as expected.\n        7. Use assert statements to verify the expected behavior.\n        8. When testing for exceptions, use pytest.raises() as a context manager.\n\n        Example of expected response format:\n\n        ```python\n        # Expected Output: 7\n\n        import pandas as pd\n        import numpy as np\n\n        def example_func(arg1: int, arg2: int) -> int:\n            # Your code here\n            result = arg1 + arg2\n            return result\n\n        class TestExampleFunc:\n            def test_normal_case(self):\n                assert example_func(3, 4) == 7\n\n            def test_edge_case(self):\n                assert example_func(-2, -3) == -5\n\n            def test_zero(self):\n                assert example_func(0, 0) == 0\n\n        # Test the function\n        print(example_func(3, 4))\n\n        print(TestExampleFunc().test_normal_case())\n\n        # Tests\n        import pytest\n\n        def test_positive_numbers():\n            assert example_func(3, 4) == 7\n\n        def test_negative_numbers():\n            assert example_func(-2, -3) == -5\n\n        def test_zero():\n            assert example_func(0, 0) == 0\n\n        def test_large_numbers():\n            assert example_func(1000000, 2000000) == 3000000\n\n        def test_type_error():\n            with pytest.raises(TypeError):\n                example_func("3", 4)\n\n        def test_class_normal_case():\n            assert TestExampleFunc().test_normal_case() == None\n\n        Remember to provide the main function implementation, expected output, and pytest tests as described above.\n        Ensure 100% code coverage for the function being tested.'"
+example = '''import pytest\nimport pandas as pd\nfrom unittest.mock import patch, MagicMock\nfrom typing import Callable, Any, Optional, Dict, Tuple\nimport asyncio\nimport numpy as np\n\nclass LLMModel:\n    def __init__(self):\n        self.unique_imports_dict = {}\n        self.init_kwargs = MagicMock()\n\n    async def code_generator(self, query: str, func: Callable[..., Any], df: Optional[pd.DataFrame] = None, goal: Optional[str] = None, verbose: bool = True, debug: bool = False, max_retries: int = 3, skip_generate_fake_data: bool = False, class_model: \'ClassDataModel\' = None) -> Tuple[str, Any, Dict[str, Any], str]:\n        """\n        Generates Python code based on the query, provided function, and optional dataframe.\n\n        :param query: The user\'s query describing the desired functionality\n        :param func: The function to be implemented\n        :param df: Optional dataframe to use for testing and validation\n        :param goal: Optional specific goal for the function (e.g., "replace every instance of \'Australia\'")\n        :param verbose: Whether to print verbose output\n        :param debug: Whether to print debug information\n        :param max_retries: Maximum number of retries for code generation\n        :param skip_generate_fake_data: Whether to skip generating fake data\n        """\n        self.unique_imports_dict = {}  # Mocking the unique imports dictionary\n        function_attributes = MagicMock()  # Mocking function attributes\n        self.init_kwargs.__dict__.update(**function_attributes.__dict__)\n        self.init_kwargs.debug = debug\n        self.init_kwargs.verbose = verbose\n        error_message = ""\n        code = ""\n        pytest_tests = ""\n        unit_test_coverage_missing: Dict[str, Any] = {}\n        goal = goal or ""\n        system_prompt = self.generate_system_prompt(query, goal, function_attributes, class_model=class_model)  # Mocking the system prompt generation\n\n        df = self.generate_fake_data(func, df, debug=self.init_kwargs.debug, skip_generate_fake_data=skip_generate_fake_data)  # Mocking fake data generation\n\n        for attempt in range(max_retries):\n            try:\n                if return_tuple := self.parse_existing_tests_or_raise_exception(function_attributes, df, debug, class_model, attempt, error_message):\n                    if return_tuple[0]:\n                        return return_tuple\n\n                if attempt == 0 or not function_attributes.test_absolute_file_path.exists():\n                    c = await self.ask_backend_model(query, system_prompt=system_prompt)  # Mocking the backend model query\n                else:\n                    coverage_report = None  # Mocking coverage report generation\n                    clarification_prompt = self.generate_clarification_prompt(query, error_message, coverage_report=coverage_report, previous_code=code, pytest_tests=pytest_tests, unit_test_coverage_missing=unit_test_coverage_missing, function_attributes=function_attributes)  # Mocking clarification prompt generation\n                    c = await self.ask_backend_model(clarification_prompt, system_prompt=system_prompt)  # Mocking the backend model query for clarification\n\n                content = self.figure_out_model_response(c)  # Mocking the model response figure out\n                code, pytest_tests = self.split_content_from_model(content)  # Mocking the content split\n\n                if class_model:\n                    result, context = {}, {}\n                else:\n                    result, context = self.execute_generated_code(code, func=func, df=df, debug=debug)  # Mocking code execution\n\n                self.write_code_and_tests(code, pytest_tests, func, class_model, function_attributes)  # Mocking writing code and tests\n\n                unit_test_coverage_missing = self.run_tests(self.init_kwargs.func_name, function_attributes.module_absolute_path, function_attributes.test_absolute_file_path, df, debug=debug, class_model=class_model)  # Mocking test running\n\n                if not unit_test_coverage_missing:\n                    return code, self.serialize_dataframe(result), context, pytest_tests\n                else:\n                    raise Exception("Tests failed or coverage is not 100%")\n\n            except Exception as e:\n                error_message = str(e)\n                continue\n\n        return code, None, {}, pytest_tests'''
 
 from pprint import pprint
 
 pprint(example)
+
+# %%
+
+example2 = ''''```python\nimport pytest\nimport pandas as pd\nfrom unittest.mock import patch, MagicMock\nfrom typing import Callable, Any, Optional, Dict, Tuple\nimport asyncio\nimport numpy as np\n\nclass LLMModel:\n    def __init__(self):\n        self.unique_imports_dict = {}\n        self.init_kwargs = MagicMock()\n\n    async def code_generator(self, query: str, func: Callable[..., Any], df: Optional[pd.DataFrame] = None, goal: Optional[str] = None, verbose: bool = True, debug: bool = False, max_retries: int = 3, skip_generate_fake_data: bool = False, class_model: \'ClassDataModel\' = None) -> Tuple[str, Any, Dict[str, Any], str]:\n        """\n        Generates Python code based on the query, provided function, and optional dataframe.\n\n        :param query: The user\'s query describing the desired functionality\n        :param func: The function to be implemented\n        :param df: Optional dataframe to use for testing and validation\n        :param goal: Optional specific goal for the function (e.g., "replace every instance of \'Australia\'")\n        :param verbose: Whether to print verbose output\n        :param debug: Whether to print debug information\n        :param max_retries: Maximum number of retries for code generation\n        :param skip_generate_fake_data: Whether to skip generating fake data\n        """\n        self.unique_imports_dict = {}  # Mocking the unique imports dictionary\n        function_attributes = MagicMock()  # Mocking function attributes\n        self.init_kwargs.__dict__.update(**function_attributes.__dict__)\n        self.init_kwargs.debug = debug\n        self.init_kwargs.verbose = verbose\n        error_message = ""\n        code = ""\n        pytest_tests = ""\n        unit_test_coverage_missing: Dict[str, Any] = {}\n        goal = goal or ""\n        system_prompt = self.generate_system_prompt(query, goal, function_attributes, class_model=class_model)  # Mocking the system prompt generation\n\n        df = self.generate_fake_data(func, df, debug=self.init_kwargs.debug, skip_generate_fake_data=skip_generate_fake_data)  # Mocking fake data generation\n\n        for attempt in range(max_retries):\n            try:\n                if return_tuple := self.parse_existing_tests_or_raise_exception(function_attributes, df, debug, class_model, attempt, error_message):\n                    if return_tuple[0]:\n                        return return_tuple\n\n                if attempt == 0 or not function_attributes.test_absolute_file_path.exists():\n                    c = await self.ask_backend_model(query, system_prompt=system_prompt)  # Mocking the backend model query\n                else:\n                    coverage_report = None  # Mocking coverage report generation\n                    clarification_prompt = self.generate_clarification_prompt(query, error_message, coverage_report=coverage_report, previous_code=code, pytest_tests=pytest_tests, unit_test_coverage_missing=unit_test_coverage_missing, function_attributes=function_attributes)  # Mocking clarification prompt generation\n                    c = await self.ask_backend_model(clarification_prompt, system_prompt=system_prompt)  # Mocking the backend model query for clarification\n\n                content = self.figure_out_model_response(c)  # Mocking the model response figure out\n                code, pytest_tests = self.split_content_from_model(content)  # Mocking the content split\n\n                if class_model:\n                    result, context = {}, {}\n                else:\n                    result, context = self.execute_generated_code(code, func=func, df=df, debug=debug)  # Mocking code execution\n\n                self.write_code_and_tests(code, pytest_tests, func, class_model, function_attributes)  # Mocking writing code and tests\n\n                unit_test_coverage_missing = self.run_tests(self.init_kwargs.func_name, function_attributes.module_absolute_path, function_attributes.test_absolute_file_path, df, debug=debug, class_model=class_model)  # Mocking test running\n\n                if not unit_test_coverage_missing:\n                    return code, self.serialize_dataframe(result), context, pytest_tests\n                else:\n                    raise Exception("Tests failed or coverage is not 100%")\n\n            except Exception as e:\n                error_message = str(e)\n                continue\n\n        return code, None, {}, pytest_tests\n```\nThis implementation provides a basic structure for the `code_generator` method of the `LLMModel` class. It includes mocks for all dependencies and functions to ensure that the function can be tested without running into issues with external dependencies or complex logic. The actual functionality would need to be implemented based on the specific requirements and behavior of the `LLMModel` class.'''
+
+pprint(example2)
+
+
+# %%
+
+system_prompt = ''''\n        You are an expert Python code analyst and test writer.\n        Your task is to analyze an existing Python function and create comprehensive tests for it.\n\n        Follow these instructions carefully:\n\n        1. Function Details:\n        Function Name: LLMModel.code_generator\n        Function is async coroutine: True\n        Signature: (self, query: str, func: Callable[..., Any], df: Optional[pandas.core.frame.DataFrame] = None, goal: Optional[str] = None, verbose: bool = True, debug: bool = False, max_retries: int = 3, skip_generate_fake_data: bool = False, class_model: code_autoeval.llm_model.utils.model.class_data_model.ClassDataModel = None) -> Tuple[str, Any, Dict[str, Any], str]\n        Docstring: Generates Python code based on the query, provided function, and optional dataframe.\n\n:param query: The user\'s query describing the desired functionality\n:param func: The function to be implemented\n:param df: Optional dataframe to use for testing and validation\n:param goal: Optional specific goal for the function (e.g., "replace every instance of \'Australia\'")\n:param verbose: Whether to print verbose output\n:param debug: Whether to print debug information\n:param max_retries: Maximum number of retries for code generation\n:param skip_generate_fake_data: Whether to skip generating fake data\n        Function Body:\n        self,\n\n    query: str,\n\n    func: Callable[..., Any],\n\n    df: Optional[pd.DataFrame] = None,\n\n    goal: Optional[str] = None,\n\n    verbose: bool = True,\n\n    debug: bool = False,\n\n    max_retries: int = 3,\n\n    skip_generate_fake_data: bool = False,\n\n    class_model: model.class_data_model.ClassDataModel = None,\n\n) -> Tuple[str, Any, Dict[str, Any], str]:\n\n    """\n\n    Generates Python code based on the query, provided function, and optional dataframe.\n\n\n\n    :param query: The user\'s query describing the desired functionality\n\n    :param func: The function to be implemented\n\n    :param df: Optional dataframe to use for testing and validation\n\n    :param goal: Optional specific goal for the function (e.g., "replace every instance of \'Australia\'")\n\n    :param verbose: Whether to print verbose output\n\n    :param debug: Whether to print debug information\n\n    :param max_retries: Maximum number of retries for code generation\n\n    :param skip_generate_fake_data: Whether to skip generating fake data\n\n    """\n\n    self.unique_imports_dict: Dict[str, str] = (\n\n        extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir()\n\n    )\n\n    function_attributes = (\n\n        model.function_attributes.FunctionAttributesFactory.create(\n\n            func, self.common.generated_base_dir, class_model\n\n        )\n\n    )\n\n    # Extract function attributes\n\n    self.init_kwargs.__dict__.update(**function_attributes.__dict__)\n\n    self.init_kwargs.debug = debug\n\n    self.init_kwargs.verbose = verbose\n\n    error_message = ""\n\n    error_formatter = (\n\n        extraction.extract_context_from_exception.ExtractContextFromException()\n\n    )\n\n    code = ""\n\n    pytest_tests = ""\n\n    unit_test_coverage_missing: Dict[str, Any] = {}\n\n    goal = goal or ""\n\n    system_prompt = self.generate_system_prompt(\n\n        query, goal, function_attributes, class_model=class_model\n\n    )\n\n\n\n    # Generate fake data if needed - if valid df then this will get skipped.\n\n    df = self.generate_fake_data(\n\n        func,\n\n        df,\n\n        debug=self.init_kwargs.debug,\n\n        skip_generate_fake_data=skip_generate_fake_data,\n\n    )\n\n\n\n    for attempt in range(max_retries):\n\n        try:\n\n            if return_tuple := self.parse_existing_tests_or_raise_exception(\n\n                function_attributes, df, debug, class_model, attempt, error_message\n\n            ):\n\n                # If the first item of the return dict is valid, then return it.\n\n                if return_tuple[0]:\n\n                    return return_tuple\n\n\n\n            if (\n\n                attempt == 0\n\n                or not function_attributes.test_absolute_file_path.exists()\n\n            ):\n\n                c = await self.ask_backend_model(query, system_prompt=system_prompt)\n\n            else:\n\n                coverage_report = (\n\n                    self.get_coverage_report(\n\n                        function_name=self.init_kwargs.func_name\n\n                    )\n\n                    if "coverage is not 100%" in error_message\n\n                    else None\n\n                )\n\n\n\n                clarification_prompt = self.generate_clarification_prompt(\n\n                    query,\n\n                    error_message,\n\n                    coverage_report=coverage_report,\n\n                    previous_code=code,\n\n                    pytest_tests=pytest_tests,\n\n                    unit_test_coverage_missing=unit_test_coverage_missing,\n\n                    function_attributes=function_attributes,\n\n                )\n\n                c = await self.ask_backend_model(\n\n                    clarification_prompt,\n\n                    system_prompt=system_prompt,\n\n                )\n\n\n\n            content = self.figure_out_model_response(c)\n\n\n\n            self.validate_func_name_in_code(content, self.init_kwargs.func_name)\n\n            self._log_code(content, intro_message="Raw content from model")\n\n\n\n            code, pytest_tests = self.split_content_from_model(content)\n\n\n\n            if code != pytest_tests:\n\n                self._log_code(code, intro_message="Split result - code")\n\n            self._log_code(\n\n                pytest_tests, intro_message="Split result - pytest_tests"\n\n            )\n\n\n\n            if class_model:\n\n                result, context = {}, {}\n\n            else:\n\n                # Execute the generated code\n\n                result, context = self.execute_generated_code(\n\n                    code,\n\n                    func=func,\n\n                    df=df,\n\n                    debug=debug,\n\n                )\n\n\n\n            # Write code and tests to files\n\n            self.write_code_and_tests(\n\n                code, pytest_tests, func, class_model, function_attributes\n\n            )\n\n\n\n            unit_test_coverage_missing = self.run_tests(\n\n                self.init_kwargs.func_name,\n\n                function_attributes.module_absolute_path,\n\n                function_attributes.test_absolute_file_path,\n\n                df,\n\n                debug=debug,\n\n                class_model=class_model,\n\n            )\n\n\n\n            if not unit_test_coverage_missing:\n\n                return (\n\n                    code,\n\n                    self.serialize_dataframe(result),\n\n                    context,\n\n                    pytest_tests,\n\n                )\n\n            else:\n\n                raise execute_unit_tests.MissingCoverageException(\n\n                    "Tests failed or coverage is not 100%"\n\n                )\n\n\n\n        # Catch alls for code - formatting errors.\n\n        except execute_unit_tests.FormattingError as se:\n\n\n\n            file_path_to_remove = function_attributes.test_absolute_file_path\n\n            self._log_code(\n\n                f"Attempt {attempt + 1} - removing test {file_path_to_remove=} - {se}",\n\n                "Syntax error: ",\n\n            )\n\n            # Remove the file and try again from the beginning\n\n            file_path_to_remove.unlink(missing_ok=True)\n\n            continue\n\n\n\n        except execute_unit_tests.MissingCoverageException as e:\n\n            error_message = str(e)\n\n            self._log_code(\n\n                f"Attempt {attempt + 1} - {error_message}",\n\n                "Insufficient coverage: ",\n\n            )\n\n            # Pass the error message to the next iteration\n\n            continue\n\n        except Exception as e:\n\n            formatted_error = error_formatter.format_error(e)\n\n            error_message = error_formatter.create_llm_error_prompt(formatted_error)\n\n\n\n            # Now let\'s add in the context for what caused this error - including\n\n            # the line numbers and the code that was generated.\n\n            if debug:\n\n                print(\n\n                    f"Attempt {attempt + 1} - Error executing generated code {error_message}"\n\n                )\n\n                pprint(formatted_error)\n\n            # Pass the error message to the next iteration\n\n            continue\n\n\n\n    self._log_max_retries(max_retries)\n\n\n\n    return code, None, {}, pytest_tests\n\n        If there are base classes, initialization parameters, or class attributes,\n        please mock all of the dependencies so that we can properly unit test.\n        Use unittest.mock or any other pytest.patch method to mock these dependencies.\n\n        Please use the following relative path provided for all mocking:\n        code_autoeval.llm_model.llm_model.LLMModel\n\n        Function Base Classes:\n        [\'DeciperResponse\', \'ExecuteGeneratedCode\', \'ExecuteUnitTests\', \'ExtractContextFromException\', \'GenerateFakeData\']\n\n        Initialization Parameters:\n        [\'kwargs\']\n\n        Class Attributes:\n        [\'_abc_impl\', \'model_computed_fields\', \'model_config\', \'model_extra\', \'model_fields\', \'model_fields_set\']\n\n        Mocking __init__ functions should return None, like the following:\n        @patch("code_autoeval.llm_model.llm_model.LLMModel.__init__", return_value=None)\n\n        2. Task: Implement the code_generator method for the LLMModel class. - with Refactor code to handle edge cases and improve efficiency.\n\n        \n        3. Code Generation Guidelines:\n        - Implement the function according to the given signature.\n        - Ensure all function arguments have their types explicitly mentioned.\n        - Create any necessary additional code to solve the task.\n        - Ensure the code is efficient, readable, and follows Python best practices.\n        - Include proper error handling if appropriate.\n        - Add brief, inline comments for clarity if needed.\n        - If any of the function args are pandas.DataFrame, pandas.Series, verify the index.\n\n        4. Test Generation Guidelines:\n        - Create pytest tests for the function.\n        - Write at least 5 test functions covering different scenarios, including:\n            a) Normal use cases\n            b) Edge cases\n            c) Potential error conditions\n        - Ensure 100% code coverage for the function being tested.\n        - If any of the function args are pandas.DataFrame or pandas.Series, include tests that verify the index and data integrity.\n\n        When writing pytest tests, please adhere to the following guidelines:\n\n        1. Only use variables that are explicitly defined within each test function.\n        2. Avoid relying on global variables or undefined mocks.\n        3. If you need to mock a method or function, define the mock within the test function using pytest.mock.patch as a decorator or context manager.\n        4. Ensure that each test function is self-contained and does not depend on the state from other tests.\n        5. Use descriptive names for test functions that clearly indicate what is being tested.\n        6. Follow the Arrange-Act-Assert (AAA) pattern in your tests:\n        - Arrange: Set up the test data and conditions.\n        - Act: Perform the action being tested.\n        - Assert: Check that the results are as expected.\n        7. Use assert statements to verify the expected behavior.\n        8. When testing for exceptions, use pytest.raises() as a context manager.\n        9. Do not use any fixtures that are not explicitly defined within the test file or imported from a known source. Specifically:\n            - Do not use a \'setup\' fixture unless you define it in the test file.\n            - Do not use a \'mock_init\' fixture unless you explicitly define it.\n            - If you need setup or teardown operations, include them directly in the test functions or use pytest\'s built-in fixtures like \'tmp_path\' or \'capsys\'.\n            - If mocking is required, create the mocks within each test function using pytest.mock.patch as a decorator or context manager.\n        \n\n        if function_attributes.is_coroutine=True, then use pytest-asyncio to test async functions.\n        For example:\n        @pytest.mark.asyncio\n        async def test_async_function():\n            result = await your_async_function()\n            assert result == expected_value\n\n        5. Output Format:\n        - Provide a brief analysis of the function (2-3 sentences).\n        - Then, provide the pytest tests.\n\n        Example of expected response format:\n\n        ```python\n        # Expected Output: 7\n\n        import pytest\n        import pandas as pd\n        import numpy as np\n\n        def example_func_provided(arg1: int, arg2: int) -> int:\n            # Your code here\n            result = arg1 + arg2\n            return result\n\n        # Test the function\n        print(example_func_provided(3, 4))\n\n        ##################################################\n        # TESTS\n        ##################################################\n\n        def test_normal_case():\n            # Test normal use case\n            assert function_name(normal_args) == expected_output\n\n        def test_edge_case_1():\n            # Test an edge case\n            assert function_name(edge_case_args) == expected_edge_output\n\n        def test_error_condition():\n            # Test an error condition\n            with pytest.raises(ExpectedErrorType):\n                function_name(error_inducing_args)\n\n        # Add more tests to ensure 100% coverage\n        '''
+
+pprint(system_prompt)
+
 
 # %%
 # %%
@@ -225,16 +587,13 @@ pprint(
 
 # %%
 
-extract_imports = ExtractImportsFromFile()
+extract_imports = extraction.extract_imports_from_file.ExtractImportsFromFile()
 # %%
 
 
 from code_autoeval.llm_model.utils.extraction.extract_classes_from_file import (
     PythonClassManager,
 )
-
-file_path = "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/clients/llm_model/test_LLMModel_split_content_from_model.py"
-content = ""
 
 manager = PythonClassManager(file_path, content=content)
 
@@ -245,4 +604,8 @@ class_definitions = manager.find_class_definitions()
 
 manager.extract_remove_class_from_file("LLMModel", file_path=file_path)
 
+# %%
+# %%
+# %%
+# %%
 # %%
