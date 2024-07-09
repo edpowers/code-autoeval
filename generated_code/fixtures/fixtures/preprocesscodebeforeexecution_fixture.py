@@ -11,15 +11,18 @@ from generated_code.fixtures.fixtures.validateregexes_fixture import fixture_moc
 from generated_code.fixtures.fixtures.runpyflakesisort_fixture import fixture_mock_runpyflakesisort
 from generated_code.fixtures.fixtures.extractimportsfromfile_fixture import fixture_mock_extractimportsfromfile
 from generated_code.fixtures.fixtures.runflake8fiximports_fixture import fixture_mock_runflake8fiximports
-from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
 from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
+from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
 from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
 @pytest.fixture
 def fixture_mock_preprocesscodebeforeexecution():
     mock = MagicMock(spec=PreProcessCodeBeforeExecution)
     mock.coverage_result = None
-    mock.file_path = Path('/')
-    mock.test_file_path = Path('/')
-    mock.absolute_path_from_root = Path('/')
+    mock.file_path = Path("/")
+    mock.test_file_path = Path("/")
+    mock.absolute_path_from_root = Path("/")
     mock.unique_imports_dict = {}
+    mock.preprocess_code = MagicMock()
+    mock.remove_non_code_patterns = MagicMock()
+    mock.run_preprocess_pipeline = MagicMock()
     return mock

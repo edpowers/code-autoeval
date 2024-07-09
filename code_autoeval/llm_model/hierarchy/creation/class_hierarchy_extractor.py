@@ -32,11 +32,7 @@ class ClassHierarchyExtractor:
         return cls.__module__ not in sys.stdlib_module_names
 
     def get_class_info(self, cls: object) -> Dict[str, Any]:
-        methods = [
-            name
-            for name, obj in inspect.getmembers(cls)
-            if inspect.isfunction(obj) and not name.startswith("__")
-        ]
+        methods, class_methods = self.extract_methods_and_inherited_methods(cls)
 
         attributes = {}
         dependencies: List[Tuple[str, Any]] = []
@@ -96,29 +92,74 @@ class ClassHierarchyExtractor:
                 and base.__name__ not in {"BaseModel", "Config"}
             ],
             "methods": methods,
+            "class_methods": class_methods,
             "attributes": attributes,
             "dependencies": list(set(dependencies)),
             "class_obj": cls,
         }
+
+    def extract_methods_and_inherited_methods(self, cls: object) -> Tuple[List, Dict]:
+        methods = []
+        class_methods = {}
+
+        # Get methods defined in this class
+        for name, obj in cls.__dict__.items():
+            if (
+                inspect.isfunction(obj)
+                or inspect.ismethod(obj)
+                or inspect.ismethoddescriptor(obj)
+            ):
+                if name.startswith("__"):
+                    continue
+                method_type = "regular"
+                if isinstance(obj, classmethod):
+                    method_type = "classmethod"
+                elif isinstance(obj, staticmethod):
+                    method_type = "staticmethod"
+                elif isinstance(obj, property):
+                    method_type = "property"
+                elif getattr(obj, "__isabstractmethod__", False):
+                    method_type = "abstractmethod"
+                class_methods[name] = method_type
+
+        # Add methods to the list, including inherited ones
+        for name, obj in inspect.getmembers(cls):
+            if (
+                inspect.isfunction(obj)
+                or inspect.ismethod(obj)
+                or inspect.ismethoddescriptor(obj)
+            ):
+                if name.startswith("__"):
+                    continue
+                if name in class_methods:
+                    methods.append((name, class_methods[name], "defined"))
+                else:
+                    method_type = "regular"
+                    if isinstance(obj, classmethod):
+                        method_type = "classmethod"
+                    elif isinstance(obj, staticmethod):
+                        method_type = "staticmethod"
+                    elif isinstance(obj, property):
+                        method_type = "property"
+                    elif getattr(obj, "__isabstractmethod__", False):
+                        method_type = "abstractmethod"
+                    methods.append((name, method_type, "inherited"))
+
+        return methods, class_methods
 
     def traverse_hierarchy(self, cls: object, module: ModuleType) -> Dict[str, Any]:
         hierarchy = {cls.__name__: self.get_class_info(cls)}
 
         for base in cls.__bases__:
             if base.__name__ not in {"object", "BaseModel", "Config", "set"}:
-                hierarchy.update(self.traverse_hierarchy(base, module))
+                hierarchy |= self.traverse_hierarchy(base, module)
 
         for dep_name, dep_class in hierarchy[cls.__name__]["dependencies"]:
             if dep_class.__module__ == "builtins":
                 continue
 
             if dep_class.__name__ not in hierarchy:
-                if hasattr(cls, dep_name):
-                    hierarchy[dep_class.__name__] = self.get_class_info(dep_class)
-                else:
-                    # If it's a separate class entirely and needs to be imported
-                    hierarchy[dep_class.__name__] = self.get_class_info(dep_class)
-
+                hierarchy[dep_class.__name__] = self.get_class_info(dep_class)
         return hierarchy
 
     def extract_class_hierarchy(

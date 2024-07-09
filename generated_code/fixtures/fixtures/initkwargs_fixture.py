@@ -6,5 +6,5 @@ def fixture_mock_initkwargs():
     mock = MagicMock(spec=InitKwargs)
     mock.verbose = False
     mock.debug = False
-    mock.func_name = ''
+    mock.func_name = ""
     return mock

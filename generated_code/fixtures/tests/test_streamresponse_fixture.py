@@ -7,6 +7,14 @@ from pathlib import Path
 from typing import Any, Dict
 def test_mock_streamresponse(fixture_mock_streamresponse):
     assert isinstance(fixture_mock_streamresponse, StreamResponse)
+    assert hasattr(fixture_mock_streamresponse, 'ask_backend_model')
+    assert callable(fixture_mock_streamresponse.ask_backend_model)
+    assert hasattr(fixture_mock_streamresponse, 'figure_out_model_response')
+    assert callable(fixture_mock_streamresponse.figure_out_model_response)
+    assert hasattr(fixture_mock_streamresponse, 'split_content_from_model')
+    assert callable(fixture_mock_streamresponse.split_content_from_model)
+    assert hasattr(fixture_mock_streamresponse, 'stream_response')
+    assert callable(fixture_mock_streamresponse.stream_response)
     assert hasattr(fixture_mock_streamresponse, 'coverage_result')
     assert hasattr(fixture_mock_streamresponse, 'file_path')
     assert isinstance(fixture_mock_streamresponse.file_path, Path)

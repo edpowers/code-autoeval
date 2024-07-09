@@ -4,6 +4,14 @@ from code_autoeval.llm_model.utils.code_cleaning.run_flake8_fix_imports import R
 @pytest.fixture
 def fixture_mock_runflake8fiximports():
     mock = MagicMock(spec=RunFlake8FixImports)
-    mock.run_flake8_pipeline_with_temp_file = None
-    mock.run_flake_fix_imports = None
+    mock.add_to_import_lines_from_original_imports = MagicMock()
+    mock.combine_new_import_lines = MagicMock()
+    mock.fix_remaining_import_statements = MagicMock()
+    mock.parse_flake8_output = MagicMock()
+    mock.remove_class_definition_from_file = MagicMock()
+    mock.run_flake8_against_code = MagicMock()
+    mock.run_flake8_pipeline_with_temp_file = classmethod(MagicMock())
+    setattr(mock, 'run_flake8_pipeline_with_temp_file', classmethod(getattr(mock, 'run_flake8_pipeline_with_temp_file').__func__))
+    mock.run_flake_fix_imports = classmethod(MagicMock())
+    setattr(mock, 'run_flake_fix_imports', classmethod(getattr(mock, 'run_flake_fix_imports').__func__))
     return mock

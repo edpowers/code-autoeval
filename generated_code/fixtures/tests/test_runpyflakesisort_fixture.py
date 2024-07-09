@@ -7,6 +7,14 @@ from pathlib import Path
 from typing import Any, Dict
 def test_mock_runpyflakesisort(fixture_mock_runpyflakesisort):
     assert isinstance(fixture_mock_runpyflakesisort, RunPyflakesIsort)
+    assert hasattr(fixture_mock_runpyflakesisort, 'add_class_import')
+    assert callable(fixture_mock_runpyflakesisort.add_class_import)
+    assert hasattr(fixture_mock_runpyflakesisort, 'parse_pyflakes_output')
+    assert callable(fixture_mock_runpyflakesisort.parse_pyflakes_output)
+    assert hasattr(fixture_mock_runpyflakesisort, 'remove_unused_imports')
+    assert callable(fixture_mock_runpyflakesisort.remove_unused_imports)
+    assert hasattr(fixture_mock_runpyflakesisort, 'run_pyflakes_isort_pipeline')
+    assert callable(fixture_mock_runpyflakesisort.run_pyflakes_isort_pipeline)
     assert hasattr(fixture_mock_runpyflakesisort, 'coverage_result')
     assert hasattr(fixture_mock_runpyflakesisort, 'file_path')
     assert isinstance(fixture_mock_runpyflakesisort.file_path, Path)

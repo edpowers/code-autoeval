@@ -92,6 +92,125 @@ unique_project_imports["BaseModelConfig"]
 
 # %%
 
+test_methods = created_hierarchy.filtered_hierarchy["RunFlake8FixImports"]["methods"]
+# test_methods = created_hierarchy.class_hierarchy["RunFlake8FixImports"]["methods"]
+
+for method_name, method_type, inherited in test_methods:
+    print(method_name, method_type, inherited)
+    if method_name == "run_flake8_pipeline_with_temp_file":
+        if method_type != "classmethod":
+            raise ValueError(
+                "The method run_flake8_pipeline_with_temp_file should be a class method."
+            )
+
+# %%
+
+cls_obj = created_hierarchy.class_hierarchy["RunFlake8FixImports"]["class_obj"]
+
+# %%
+
+created_hierarchy.class_hierarchy["BaseLLMClass"]
+
+# %%
+
+display(
+    dir(created_hierarchy.class_hierarchy["BaseLLMClass"]["attributes"]["file_path"])
+)
+
+# %%
+
+created_hierarchy.class_hierarchy["BaseLLMClass"]["attributes"]["file_path"]
+
+import ast
+import datetime
+import logging
+import os
+import subprocess
+import sys
+from pathlib import Path
+from typing import Any, Dict, Type, Union
+
+import numpy as np
+import pandas as pd
+from pydantic import BaseModel
+
+
+def get_default_value(type_: Type[Any]) -> Any:
+    """Return an appropriate default value for isinstance checks."""
+    # Handle Optional and Union types
+    if hasattr(type_, "__origin__") and type_.__origin__ is Union:
+        # Get the first non-NoneType argument
+        for arg in type_.__args__:
+            if arg is not type(None):
+                return self.get_default_value(arg)
+
+    if isinstance(type_, type):
+        if type_ == str:
+            return ""
+        elif type_ == int:
+            return 0
+        elif type_ == float:
+            return 0.0
+        elif type_ == bool:
+            return False
+        elif type_ == list:
+            return []
+        elif type_ == dict:
+            return {}
+        elif type_ == Path:
+            return Path("/")
+        elif type_ == logging.Logger:
+            return logging.getLogger("test")
+        elif type_ == pd.DataFrame:
+            return pd.DataFrame()
+        elif type_ == np.ndarray:
+            return np.array([])
+        elif type_ == datetime:
+            return datetime.datetime.now()
+        elif type_ == subprocess.CompletedProcess:
+            return subprocess.CompletedProcess(args=[], returncode=0)
+        else:
+            try:
+                return type_()  # Try to create an instance of the type
+            except TypeError:
+                # If the type can't be instantiated without arguments, return None
+                return None
+    elif hasattr(type_, "__origin__"):
+        # For typing objects like List, Dict, etc.
+        origin = type_.__origin__
+        if origin == list:
+            return []
+        elif origin == dict:
+            return {}
+        elif origin == tuple:
+            return ()
+        elif origin == set:
+            return set()
+
+    # If we can't determine a specific type, return None
+    return None
+
+
+type_ = created_hierarchy.class_hierarchy["BaseLLMClass"]["attributes"]["file_path"]
+
+# %%
+
+# Handle Optional and Union types
+if hasattr(type_, "__origin__") and type_.__origin__ is Union:
+    # Get the first non-NoneType argument
+    for arg in type_.__args__:
+        print(arg)
+        if arg is not type(None):
+            final_value = get_default_value(arg)
+            break
+
+#%%
+
+final_value
+
+# %%
+# %%
+
 
 async def main() -> None:
     fixture_gen = FixtureGenerator(

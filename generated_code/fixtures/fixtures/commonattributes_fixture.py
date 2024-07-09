@@ -11,5 +11,5 @@ def fixture_mock_commonattributes():
     mock.project_root = Path('/')
     mock.generated_base_dir = Path('/')
     mock.generated_base_log_dir = Path('/')
-    mock.class_logger = logging.getLogger('test')
+    mock.class_logger = logging.Logger('test')
     return mock

@@ -7,6 +7,16 @@ from pathlib import Path
 from typing import Any, Dict
 def test_mock_commonloggingstatements(fixture_mock_commonloggingstatements):
     assert isinstance(fixture_mock_commonloggingstatements, CommonLoggingStatements)
+    assert hasattr(fixture_mock_commonloggingstatements, '_log_code')
+    assert callable(fixture_mock_commonloggingstatements._log_code)
+    assert hasattr(fixture_mock_commonloggingstatements, '_log_coverage_results')
+    assert callable(fixture_mock_commonloggingstatements._log_coverage_results)
+    assert hasattr(fixture_mock_commonloggingstatements, '_log_fake_gen_data')
+    assert callable(fixture_mock_commonloggingstatements._log_fake_gen_data)
+    assert hasattr(fixture_mock_commonloggingstatements, '_log_max_retries')
+    assert callable(fixture_mock_commonloggingstatements._log_max_retries)
+    assert hasattr(fixture_mock_commonloggingstatements, '_log_test_coverage_path')
+    assert callable(fixture_mock_commonloggingstatements._log_test_coverage_path)
     assert hasattr(fixture_mock_commonloggingstatements, 'coverage_result')
     assert hasattr(fixture_mock_commonloggingstatements, 'file_path')
     assert isinstance(fixture_mock_commonloggingstatements.file_path, Path)

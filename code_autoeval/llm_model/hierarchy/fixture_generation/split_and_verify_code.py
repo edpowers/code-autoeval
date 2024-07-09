@@ -57,9 +57,10 @@ class SplitAndVerifyCode:
         fixture_code = ""
         test_code = ""
         # Try to split by our specified headers first
-        parts = code.split("# Fixture Code:")
+        # Try to split by our specified headers first
+        parts = code.split("# File: fixtures/")
         if len(parts) == 2:
-            fixture_and_test = parts[1].split("# Test Code:")
+            fixture_and_test = parts[1].split("# File: tests/")
             if len(fixture_and_test) == 2:
                 fixture_code = fixture_and_test[0].strip()
                 test_code = fixture_and_test[1].strip()
@@ -70,10 +71,16 @@ class SplitAndVerifyCode:
                 fixture_code = code_blocks[0].strip()
                 test_code = code_blocks[-1].strip()
             else:
-                pprint(code)
-                raise ValueError(
-                    "Could not find separate fixture and test code sections"
-                )
+                # If both methods fail, try to split based on the structure of the pasted content
+                parts = code.split("# File: tests/")
+                if len(parts) == 2:
+                    fixture_code = parts[0].split("# File: fixtures/")[1].strip()
+                    test_code = parts[1].strip()
+                else:
+                    pprint(code)
+                    raise ValueError(
+                        "Could not find separate fixture and test code sections"
+                    )
 
         # Remove any remaining markdown or comments
         fixture_code = cls.clean_code(fixture_code)
@@ -253,8 +260,12 @@ class SplitAndVerifyCode:
 
     @staticmethod
     def clean_code(code: str) -> str:
+        # If the first line strip() ends with .py, then add a # to the start of the line
+        if code.strip().split("\n")[0].strip().endswith(".py"):
+            code = "# " + code
+
         # Remove markdown code block syntax if present
-        code = re.sub(r"^```python\n|```$", "", code, flags=re.MULTILINE)
+        code = re.sub(r"```python\n|```$", "", code, flags=re.MULTILINE)
 
         # Remove comments that start with #
         code = re.sub(r"#.*$", "", code, flags=re.MULTILINE)
@@ -262,4 +273,4 @@ class SplitAndVerifyCode:
         # Remove empty lines
         code = "\n".join(line for line in code.split("\n") if line.strip())
 
-        return code.strip()
+        return code.strip().strip("```python")

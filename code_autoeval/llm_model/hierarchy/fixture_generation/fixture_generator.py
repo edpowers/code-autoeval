@@ -1,9 +1,14 @@
 import ast
+import datetime
+import logging
 import os
+import subprocess
 import sys
 from pathlib import Path
-from typing import Dict
+from typing import Any, Dict, Type
 
+import numpy as np
+import pandas as pd
 from pydantic import BaseModel
 
 from code_autoeval.llm_model.hierarchy.fixture_generation.split_and_verify_code import (
@@ -83,6 +88,9 @@ class FixtureGenerator(BaseModel):
                 if type_key in attr_type_str:
                     necessary_imports.add(import_statement)
 
+        # Create a list of all defined method names
+        method_names = [value[0] for value in class_info["methods"]]
+
         # Create a list of previously defined fixtures
         previous_fixtures = [
             f"fixture_mock_{cls.lower()}"
@@ -131,9 +139,37 @@ class FixtureGenerator(BaseModel):
             """
 
         for attr, type_ in class_info["attributes"].items():
+            if attr in method_names:
+                continue
+
             fixture_content += f"""
             mock.{attr} = {self.get_default_value(type_)}
             """
+
+        # Add mocking for methods
+        for method_name, method_type, _ in class_info["methods"]:
+
+            if method_type == "regular":
+                fixture_content += f"""
+            mock.{method_name} = MagicMock()
+                """
+            elif method_type == "classmethod":
+                fixture_content += f"""
+            mock.{method_name} = classmethod(MagicMock())
+            setattr(mock, '{method_name}', classmethod(getattr(mock, '{method_name}').__func__))
+                """
+            elif method_type == "staticmethod":
+                fixture_content += f"""
+            mock.{method_name} = staticmethod(MagicMock())
+                """
+            elif method_type == "property":
+                fixture_content += f"""
+            mock.{method_name} = property(MagicMock())
+                """
+            elif method_type == "abstractmethod":
+                fixture_content += f"""
+            mock.{method_name} = MagicMock(__isabstractmethod__=True)
+                """
 
         fixture_content += """
         return mock
@@ -144,6 +180,36 @@ class FixtureGenerator(BaseModel):
             assert isinstance(fixture_mock_{class_name.lower()}, {class_name})
         """
 
+        # Add
+        for method_name, method_type, _ in class_info["methods"]:
+
+            if method_type == "regular":
+                test_content += f"""
+            assert hasattr(fixture_mock_{class_name.lower()}, '{method_name}')
+            assert callable(fixture_mock_{class_name.lower()}.{method_name})
+            """
+            elif method_type == "classmethod":
+                test_content += f"""
+            assert hasattr(fixture_mock_{class_name.lower()}, '{method_name}')
+            assert isinstance(fixture_mock_{class_name.lower()}.{method_name}, classmethod)
+            assert callable(fixture_mock_{class_name.lower()}.{method_name}.__func__)
+            """
+            elif method_type == "staticmethod":
+                test_content += f"""
+            assert hasattr(fixture_mock_{class_name.lower()}, '{method_name}')
+            assert isinstance(fixture_mock_{class_name.lower()}.{method_name}, staticmethod)
+            """
+            elif method_type == "property":
+                test_content += f"""
+            assert hasattr(fixture_mock_{class_name.lower()}, '{method_name}')
+            assert isinstance(fixture_mock_{class_name.lower()}.{method_name}, property)
+            """
+            elif method_type == "abstractmethod":
+                test_content += f"""
+            assert hasattr(fixture_mock_{class_name.lower()}, '{method_name}')
+            assert getattr(fixture_mock_{class_name.lower()}.{method_name}, '__isabstractmethod__', False)
+            """
+
         if is_pydantic_model:
             test_content += f"""
             assert hasattr(fixture_mock_{class_name.lower()}, 'Config')
@@ -153,12 +219,12 @@ class FixtureGenerator(BaseModel):
         for attr, type_ in class_info["attributes"].items():
             if str(type_) != "typing.Any":
                 test_content += f"""
-            assert hasattr(mock_{class_name.lower()}, '{attr}')
-            assert isinstance(mock_{class_name.lower()}.{attr}, {self.get_type_name(type_)})
+            assert hasattr(fixture_mock_{class_name.lower()}, '{attr}')
+            assert isinstance(fixture_mock_{class_name.lower()}.{attr}, {self.get_type_name(type_)})
         """
             else:
                 test_content += f"""
-            assert hasattr(mock_{class_name.lower()}, '{attr}')
+            assert hasattr(fixture_mock_{class_name.lower()}, '{attr}')
             # Skipping isinstance check for 'Any' type
         """
 
@@ -216,6 +282,16 @@ class FixtureGenerator(BaseModel):
         d. The object correctly inherits from its parent classes
         e. Dependencies are properly mocked and accessible
         {test_content}
+
+        When creating the fixture and tests, please consider the following for methods:
+        - For regular methods, use: mock.method_name = MagicMock()
+        - For classmethods, use: mock.method_name = classmethod(MagicMock())
+        - For staticmethods, use: mock.method_name = staticmethod(MagicMock())
+        - In the tests, verify the method types:
+        - For regular methods: assert isinstance(fixture_mock_{class_name.lower()}.method_name, MagicMock)
+        - For classmethods: assert isinstance(fixture_mock_{class_name.lower()}.method_name, classmethod)
+        - For staticmethods: assert isinstance(fixture_mock_{class_name.lower()}.method_name, staticmethod)
+
 
         3. Please generate the following:
 
@@ -289,6 +365,13 @@ class FixtureGenerator(BaseModel):
                 class_name, class_info, level, previous_levels
             )
 
+            # Update the unique project imports with the fixture code.
+            self.unique_project_imports.update(
+                extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir(
+                    subdirectory_name="generated_code/fixtures"
+                )
+            )
+
             try:
                 fixture_code, test_code = SplitAndVerifyCode.split_and_verify_code(
                     combined_code,
@@ -337,31 +420,61 @@ class FixtureGenerator(BaseModel):
             await self.generate_fixtures_for_level(level)
             await self.generate_fixtures_for_level(level)
 
-    def get_default_value(self, type_: type) -> str:
-        """Return a default value string for a given type."""
-        type_str = str(type_)
-        if "Path" in type_str:
-            return "Path('/')"
-        elif "Logger" in type_str:
-            return "logging.getLogger('test')"
-        elif "DataFrame" in type_str:
-            return "pd.DataFrame()"
-        elif "ndarray" in type_str:
-            return "np.array([])"
-        elif type_ == str:
-            return "''"
-        elif type_ in (int, float):
-            return "0"
-        elif type_ == bool:
-            return "False"
-        elif "datetime" in type_str:
-            return "datetime.now()"
-        elif "list" in type_str.lower():
-            return "[]"
-        elif "dict" in type_str.lower():
-            return "{}"
-        else:
-            return "None"
+    def get_default_value(self, type_: Type[Any]) -> Any:
+        """Return an appropriate default value for isinstance checks."""
+        # Handle Optional and Union types
+        if hasattr(type_, "__args__"):
+            if len(type_.__args__) > 1 and type(None) in type_.__args__:
+                # Get the first non-NoneType argument
+                for arg in type_.__args__:
+                    if arg is not type(None):
+                        return self.get_default_value(arg)
+
+        if isinstance(type_, type):
+            if type_ == str:
+                return ""
+            elif type_ == int:
+                return 0
+            elif type_ == float:
+                return 0.0
+            elif type_ == bool:
+                return False
+            elif type_ == list:
+                return []
+            elif type_ == dict:
+                return {}
+            elif type_ == Path:
+                return Path("/")
+            elif type_ == logging.Logger:
+                return logging.getLogger("test")
+            elif type_ == pd.DataFrame:
+                return pd.DataFrame()
+            elif type_ == np.ndarray:
+                return np.array([])
+            elif type_ == datetime:
+                return datetime.datetime.now()
+            elif type_ == subprocess.CompletedProcess:
+                return subprocess.CompletedProcess(args=[], returncode=0)
+            else:
+                try:
+                    return type_()  # Try to create an instance of the type
+                except TypeError:
+                    # If the type can't be instantiated without arguments, return None
+                    return None
+        elif hasattr(type_, "__origin__"):
+            # For typing objects like List, Dict, etc.
+            origin = type_.__origin__
+            if origin == list:
+                return []
+            elif origin == dict:
+                return {}
+            elif origin == tuple:
+                return ()
+            elif origin == set:
+                return set()
+
+        # If we can't determine a specific type, return None
+        return None
 
     def get_type_name(self, type_: type) -> str:
         """Return the type name as a string."""
