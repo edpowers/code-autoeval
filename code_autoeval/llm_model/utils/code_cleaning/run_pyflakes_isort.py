@@ -3,6 +3,8 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
     LoggingStatements,
 )
@@ -14,7 +16,7 @@ class RunPyflakesIsort(LoggingStatements):
         self,
         code: str,
         max_line_length: int,
-        class_model: Optional["ClassDataModel"] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> Tuple[str, bool]:
         was_modified = False
 
@@ -69,7 +71,7 @@ class RunPyflakesIsort(LoggingStatements):
         return "\n".join(new_lines)
 
     def add_class_import(
-        self, code: str, class_model: "ClassDataModel"
+        self, code: str, class_model: class_data_model.ClassDataModel
     ) -> Tuple[str, bool]:
         """Add import for the class if it's not."""
         absolute_path = class_model.absolute_path.rsplit(".", maxsplit=1)[0]

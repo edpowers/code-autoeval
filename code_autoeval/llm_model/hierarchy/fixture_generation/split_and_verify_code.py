@@ -5,13 +5,14 @@ import re
 from pprint import pprint
 from typing import Any, Dict
 
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.code_cleaning.run_flake8_fix_imports import (
     RunFlake8FixImports,
 )
 from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
 
 
 class CodeVerificationError(Exception):
@@ -47,7 +48,7 @@ class SplitAndVerifyCode:
     def split_and_verify_code(
         cls,
         code: str,
-        class_model: ClassDataModel,
+        class_model: class_data_model.ClassDataModel,
         unique_project_imports: Dict[str, str],
     ) -> tuple[str, str]:
         """

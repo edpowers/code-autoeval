@@ -4,6 +4,7 @@ from pprint import pprint
 from typing import Any, Callable, Dict, Optional, Tuple
 
 import pandas as pd
+from multiuse.model import class_data_model
 
 from code_autoeval.llm_model.utils import (
     execute_generated_code,
@@ -37,7 +38,7 @@ class LLMModel(
         debug: bool = False,
         max_retries: int = 3,
         skip_generate_fake_data: bool = False,
-        class_model: model.class_data_model.ClassDataModel = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> Tuple[str, Any, Dict[str, Any], str]:
         """
         Generates Python code based on the query, provided function, and optional dataframe.
@@ -52,7 +53,7 @@ class LLMModel(
         :param skip_generate_fake_data: Whether to skip generating fake data
         """
         self.unique_imports_dict: Dict[str, str] = (
-            extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+            extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
         )
         function_attributes = (
             model.function_attributes.FunctionAttributesFactory.create(

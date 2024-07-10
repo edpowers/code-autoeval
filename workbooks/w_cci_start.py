@@ -3,21 +3,19 @@
 # %%
 
 import asyncio
-import inspect
-import logging
 import os
 import re
 import sys
 from abc import ABC, abstractmethod
-from inspect import Parameter
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import pandas as pd
 from multiuse.filepaths.find_classes_in_dir import FindClassesInDir
 from multiuse.filepaths.find_project_root import FindProjectRoot
 from multiuse.filepaths.system_utils import SystemUtils
 from multiuse.log_methods.custom_logging_funcs import CustomLoggingFuncs
+from multiuse.model import class_data_model
 
 print(CustomLoggingFuncs)
 
@@ -28,31 +26,8 @@ if str(path_cwd) not in sys.path:
     sys.path.insert(0, str(path_cwd))
 
 
-import nest_asyncio
-from dotenv import load_dotenv
-from pydantic import create_model
-
-from code_autoeval.llm_model.utils.extraction.find_unique_imports_from_directory import (
-    FindUniqueImportsFromDirectory,
-)
-from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import (
-    CommonLoggingStatements,
-)
-
-print(CommonLoggingStatements)
-
 from code_autoeval.llm_model.llm_model import LLMModel
-from code_autoeval.llm_model.utils.model.class_data_model import (
-    ClassDataModel,
-    ClassDataModelFactory,
-)
-
-nest_asyncio.apply()
-
-print(logging, inspect, Parameter, create_model, load_dotenv, os)
-
-
-# %%
+from code_autoeval.llm_model.utils import extraction
 
 
 # %%
@@ -219,27 +194,49 @@ async def main2() -> None:
 
 llm_model_client = LLMModel()
 
+unique_imports = (
+    extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
+)
+
+
 # Example usage
-module_path = Path(SystemUtils.get_class_file_path(main2))
+module_path = SystemUtils.get_class_file_path(main2)
 
 # Find the project root
 project_root = FindProjectRoot.find_project_root(module_path)
 
 directory = project_root.joinpath("code_autoeval")
-
+generated_code_dir = project_root.joinpath("generated_code/tests")
 generated_code_logs = project_root.joinpath("generated_code_logs")
+
 SystemUtils.clean_directory(generated_code_logs, python_file_patterns=["*.log"])
 
-class_info = FindClassesInDir.find_classes_in_dir(directory)
+class_info_list = FindClassesInDir.find_classes_in_dir(str(directory))
 
-unique_imports = FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+class_data_factory = class_data_model.ClassDataModelFactory(project_root)
+class_data_models = class_data_factory.create_from_class_info(class_info_list)
 
-class_data_factory = ClassDataModelFactory(project_root)
-
-class_data_models = class_data_factory.create_from_class_info(class_info)
+# Instantiate the fixer parser class to find all registered fixtures.
+fixture_parser = extraction.fixture_parser.FixtureParser()
+fixture_parser.parse_directory(
+    project_root.joinpath("generated_code/fixtures/fixtures")
+)
 
 
 display(class_data_models)
+
+# %%
+
+
+class_data_models[0]
+
+# %%
+
+fixture_parser.fixtures_by_file
+
+# %%
+
+fixture_parser.get_fixtures_for_class(class_data_models[1].class_name)
 
 # %%
 
@@ -250,14 +247,11 @@ display(class_data_models)
 async def generate_code_for_classes(
     class_data_models: List[ClassDataModel],
     llm_model_client: LLMModel,
+    generated_code_dir: Path,
     clean_directory_before_start: bool = True,
+    goal: str = "Refactor code to handle edge cases and improve efficiency.",
+    fixture_parser: Optional[FixtureParser] = None,
 ) -> None:
-
-    project_root = FindProjectRoot.find_project_root(
-        start_path=Path(SystemUtils.get_class_file_path(main2))
-    )
-    # Clean the generated_code directory
-    generated_code_dir = project_root.joinpath("generated_code/tests")
 
     if clean_directory_before_start:
         SystemUtils.clean_directory(
@@ -266,17 +260,13 @@ async def generate_code_for_classes(
 
     for class_model in class_data_models:
 
+        print(f"Generating code for class: {class_model.class_name}")
+
         if not class_model.class_methods:
             print(f"Skipping: No functions to implement for {class_model.class_name}")
             continue
 
-        goal = "Refactor code to handle edge cases and improve efficiency."
-
         for method in class_model.class_methods:
-            # Skip any special methods.
-            if method.startswith("__"):
-                print(f"Skipping: Special method {method}")
-                continue
 
             try:
                 function_to_implement = getattr(class_model.class_object, method)
@@ -285,12 +275,6 @@ async def generate_code_for_classes(
                     f"Error getting method {method} for class {class_model.class_name}"
                 )
                 continue
-
-            query = (
-                f"Implement the {method} method for the {class_model.class_name} class."
-            )
-
-            print(f"Generating code for class: {class_model.class_name}")
 
             query = (
                 f"Implement the {method} method for the {class_model.class_name} class."
@@ -326,7 +310,9 @@ async def main3(clean_directory_before_start: bool = False) -> None:
     await generate_code_for_classes(
         class_data_models,
         llm_model_client,
+        generated_code_dir=generated_code_dir,
         clean_directory_before_start=clean_directory_before_start,
+        fixture_parser=fixture_parser,
     )
 
 
@@ -346,7 +332,7 @@ class_data_models[0]
 # %%
 
 
-unique_imports = FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+unique_imports = FindImportsFromDir.find_unique_imports_from_dir()
 unique_imports
 
 # %%
@@ -402,6 +388,8 @@ extracted_imports = extract_imports(content)
 
 llm_model_client = LLMModel()
 
-base_hierarchy_prompt = llm_model_client.generate_prompt_for_mock_hierarchy(class_hierarchy)
+base_hierarchy_prompt = llm_model_client.generate_prompt_for_mock_hierarchy(
+    class_hierarchy
+)
 
 c = await self.ask_backend_model(query, system_prompt=system_prompt)

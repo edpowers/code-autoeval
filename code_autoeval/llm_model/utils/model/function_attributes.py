@@ -6,9 +6,8 @@ from pathlib import Path
 from typing import Callable, Optional, Tuple
 
 from multiuse.filepaths.system_utils import SystemUtils
+from multiuse.model import class_data_model
 from pydantic import BaseModel, Field
-
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
 
 
 class FunctionAttributes(BaseModel):
@@ -52,14 +51,14 @@ class FunctionAttributesFactory:
     def create(
         func: Callable,
         generated_base_dir: Path,
-        class_model: Optional["ClassDataModel"] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> FunctionAttributes:
         """
         Extract all relevant attributes from a given function and create a FunctionAttributes instance.
 
         Args:
             func (Callable): The function to extract attributes from.
-            class_model (Optional[ClassDataModel]): The class model if the function is a method.
+            class_model (Optional[class_data_model.ClassDataModel]): The class model if the function is a method.
 
         Returns:
             FunctionAttributes: A model containing all extracted function attributes.
@@ -93,7 +92,7 @@ class FunctionAttributesFactory:
 
     @staticmethod
     def _get_function_name(
-        func: Callable, class_model: Optional["ClassDataModel"] = None
+        func: Callable, class_model: Optional[class_data_model.ClassDataModel] = None
     ) -> str:
         """Extract the function name."""
         return (
@@ -136,7 +135,9 @@ class FunctionAttributesFactory:
 
     @staticmethod
     def _is_coroutine(
-        func: Callable, class_model: Optional["ClassDataModel"], method_name: str
+        func: Callable,
+        class_model: Optional[class_data_model.ClassDataModel],
+        method_name: str,
     ) -> bool:
         """
         Check if the function is a coroutine.

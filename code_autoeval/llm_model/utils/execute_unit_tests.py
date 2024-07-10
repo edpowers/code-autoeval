@@ -12,11 +12,12 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import pandas as pd
 from IPython.display import display
 from multiuse.filepaths.system_utils import SystemUtils
+from multiuse.model import class_data_model
 
 from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import (
     ParseUnitTestCoverage,
 )
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+
 from code_autoeval.llm_model.utils.model.custom_exceptions import (
     CoverageParsingError,
     FormattingError,
@@ -36,7 +37,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         self,
         function_attributes: FunctionAttributes,
         df: pd.DataFrame,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
         attempt: int = 0,
         error_message: str = "",
     ) -> Tuple[str, pd.DataFrame, Dict[str, Any], str]:
@@ -70,7 +71,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         code: str,
         pytest_tests: str,
         func: Callable,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
         func_attributes: Optional[FunctionAttributes] = None,
     ) -> None:
 
@@ -118,7 +119,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         print(f"Pytest tests written to {self.test_file_path}")
 
     def _construct_file_path_and_test_path(
-        self, func: Callable, class_model: Optional[ClassDataModel] = None
+        self, func: Callable, class_model: Optional[class_data_model.ClassDataModel] = None
     ) -> Tuple[Path, Path, Path]:
         # Get the absolute path of the function's module
         module_path = Path(SystemUtils.get_class_file_path(func))
@@ -158,7 +159,7 @@ class ExecuteUnitTests(PreProcessCodeBeforeExecution, ParseUnitTestCoverage):
         file_path: Path,
         test_file_path: Path,
         df: Optional[pd.DataFrame] = None,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> Dict[str, Any]:
         # Get the absolute path from the project root
         format_test_path = SystemUtils.format_path_for_import(test_file_path)

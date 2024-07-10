@@ -5,7 +5,8 @@ import subprocess
 import tempfile
 from typing import Any, Dict, List, Optional, Set, Tuple
 
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.validation.validate_regexes import validate_code
 
 
@@ -17,7 +18,7 @@ class RunFlake8FixImports:
     def run_flake8_pipeline_with_temp_file(
         cls,
         code: str,
-        class_model: ClassDataModel,
+        class_model: class_data_model.ClassDataModel,
         original_imports: Dict[str, str],
         unique_project_imports: Optional[Dict[str, str]],
         **kwargs,  # Need the kwargs for validate_code
@@ -49,7 +50,7 @@ class RunFlake8FixImports:
         cls,
         temp_file_path: str,
         code: str,
-        class_model: ClassDataModel,
+        class_model: class_data_model.ClassDataModel,
         original_imports: Dict[str, str],
         unique_project_imports: Optional[Dict[str, str]],
     ) -> Tuple[str, bool]:
@@ -143,7 +144,7 @@ class RunFlake8FixImports:
         import_lines_to_add: List[str],
         undefined_names: Set[Any],
         code: str,
-        class_model: ClassDataModel,
+        class_model: class_data_model.ClassDataModel,
     ) -> Tuple[List[str], Set[Any]]:
         """Remove the class definition from the file."""
         # Remove duplicate import errors
@@ -215,7 +216,10 @@ class RunFlake8FixImports:
         return import_lines_to_add, remaining_undefined
 
     def combine_new_import_lines(
-        self, import_lines_to_add: List[str], code: str, class_model: ClassDataModel
+        self,
+        import_lines_to_add: List[str],
+        code: str,
+        class_model: class_data_model.ClassDataModel,
     ) -> str:
         """Combine the new import lines."""
         # Process the code

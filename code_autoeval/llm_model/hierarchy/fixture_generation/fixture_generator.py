@@ -9,8 +9,8 @@ from typing import Any, Dict, Type
 
 import numpy as np
 import pandas as pd
+from multiuse.model import class_data_model
 from pydantic import BaseModel
-
 from code_autoeval.llm_model.hierarchy.fixture_generation.split_and_verify_code import (
     CodeVerificationError,
     EmptyTestCodeError,
@@ -18,7 +18,6 @@ from code_autoeval.llm_model.hierarchy.fixture_generation.split_and_verify_code 
     TestCodeVerificationError,
 )
 from code_autoeval.llm_model.utils import extraction
-from code_autoeval.llm_model.utils.model import class_data_model
 from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
 
 IMPORT_BANK = {
@@ -41,7 +40,7 @@ class FixtureGenerator(BaseModel):
     project_root: str
     clean_output_dir: bool = True
     unique_project_imports: Dict[str, str] = (
-        extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir()
+        extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
     )
 
     class Config:
@@ -367,7 +366,7 @@ class FixtureGenerator(BaseModel):
 
             # Update the unique project imports with the fixture code.
             self.unique_project_imports.update(
-                extraction.find_unique_imports_from_directory.FindUniqueImportsFromDirectory.find_unique_imports_from_dir(
+                extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir(
                     subdirectory_name="generated_code/fixtures"
                 )
             )

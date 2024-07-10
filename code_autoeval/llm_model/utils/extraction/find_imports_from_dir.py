@@ -10,7 +10,7 @@ from tqdm import tqdm
 from code_autoeval.llm_model.utils.extraction import extract_imports_from_file
 
 
-class FindUniqueImportsFromDirectory:
+class FindImportsFromDir:
     """Find the unique imports from a directory."""
 
     project_root: Path

@@ -3,11 +3,12 @@
 import ast
 from typing import Dict, Tuple, Union
 
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
     LoggingStatements,
 )
 from code_autoeval.llm_model.utils.model import function_attributes
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
 
 
 class ExtractImportsFromFile(LoggingStatements):
@@ -17,7 +18,7 @@ class ExtractImportsFromFile(LoggingStatements):
     def find_original_code_and_imports(
         cls,
         func_or_class_model: Union[
-            function_attributes.FunctionAttributes, ClassDataModel
+            function_attributes.FunctionAttributes, class_data_model.ClassDataModel
         ],
     ) -> Tuple[str, dict]:
         self = cls()
@@ -28,7 +29,7 @@ class ExtractImportsFromFile(LoggingStatements):
     def _read_in_original_code(
         self,
         func_or_class_model: Union[
-            function_attributes.FunctionAttributes, ClassDataModel
+            function_attributes.FunctionAttributes, class_data_model.ClassDataModel
         ],
     ) -> Tuple[str, str]:
         with open(func_or_class_model.module_absolute_path, "r") as file:

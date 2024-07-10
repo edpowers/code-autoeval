@@ -3,6 +3,8 @@
 import re
 from typing import Optional, Tuple
 
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.code_cleaning.run_flake8_fix_imports import (
     RunFlake8FixImports,
 )
@@ -17,7 +19,6 @@ from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
 )
 
 from code_autoeval.llm_model.utils.model import function_attributes
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
 from code_autoeval.llm_model.utils.validation.validate_regexes import (
     ValidateRegexes,
     validate_code,
@@ -35,7 +36,7 @@ class PreProcessCodeBeforeExecution(
         self,
         code: str,
         max_line_length: int = 120,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
         func_attributes: function_attributes.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,
@@ -74,7 +75,7 @@ class PreProcessCodeBeforeExecution(
     def preprocess_code(
         self,
         code: str,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
         func_attributes: function_attributes.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,

@@ -4,6 +4,7 @@ import ast
 import shutil
 import tempfile
 from pathlib import Path
+from pprint import pprint
 from typing import List, Optional, Tuple
 
 
@@ -118,6 +119,7 @@ class PythonClassManager:
         try:
             tree = ast.parse(content)
         except SyntaxError as e:
+            pprint(content)
             raise SyntaxError(
                 f"Invalid Python syntax in {self.file_path}: {str(e)}"
             ) from e

@@ -2,7 +2,8 @@
 
 from typing import Any, Callable, Dict, Optional
 
-from code_autoeval.llm_model.utils.model.class_data_model import ClassDataModel
+from multiuse.model import class_data_model
+
 from code_autoeval.llm_model.utils.model.function_attributes import FunctionAttributes
 
 
@@ -13,7 +14,7 @@ class SystemPrompts:
         query: str,
         goal: str,
         function_attributes: FunctionAttributes,
-        class_model: Optional[ClassDataModel] = None,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> str:
         """Passthrough generation of system prompt."""
         if function_attributes.function_body and class_model:
@@ -33,7 +34,7 @@ class SystemPrompts:
         query: str,
         goal: str,
         function_attributes: FunctionAttributes,
-        class_model: ClassDataModel,
+        class_model: class_data_model.ClassDataModel,
     ) -> str:
         return f"""
         You are an expert Python code analyst and test writer.
