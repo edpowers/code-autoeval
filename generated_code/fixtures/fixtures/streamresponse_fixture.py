@@ -12,9 +12,9 @@ from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_ini
 def fixture_mock_streamresponse():
     mock = MagicMock(spec=StreamResponse)
     mock.coverage_result = None
-    mock.file_path = Path()
-    mock.test_file_path = Path()
-    mock.absolute_path_from_root = Path()
+    mock.file_path = Path("/")
+    mock.test_file_path = Path("/")
+    mock.absolute_path_from_root = Path("/")
     mock.unique_imports_dict = {}
     mock.ask_backend_model = MagicMock()
     mock.figure_out_model_response = MagicMock()

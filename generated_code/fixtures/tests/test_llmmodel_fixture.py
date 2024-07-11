@@ -1,7 +1,7 @@
-from code_autoeval.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
-from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
-from code_autoeval.llm_model.utils.execute_unit_tests import ExecuteUnitTests
 from code_autoeval.llm_model.utils.extraction.extract_context_from_exception import ExtractContextFromException
+from code_autoeval.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
+from code_autoeval.llm_model.utils.execute_unit_tests import ExecuteUnitTests
+from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
 import pytest
 from generated_code.fixtures.fixtures.llmmodel_fixture import fixture_mock_llmmodel
 from code_autoeval.llm_model.llm_model import LLMModel
@@ -22,6 +22,10 @@ def test_mock_llmmodel(fixture_mock_llmmodel):
     assert isinstance(fixture_mock_llmmodel.unique_imports_dict, Dict)
     assert hasattr(fixture_mock_llmmodel, 'imported_libraries')
     assert isinstance(fixture_mock_llmmodel.imported_libraries, set)
+    assert hasattr(fixture_mock_llmmodel, 'error_message')
+    assert isinstance(fixture_mock_llmmodel.error_message, str)
+    assert hasattr(fixture_mock_llmmodel, 'formatted_error')
+    assert isinstance(fixture_mock_llmmodel.formatted_error, str)
     assert isinstance(fixture_mock_llmmodel, ExecuteGeneratedCode)
     assert isinstance(fixture_mock_llmmodel, ExecuteUnitTests)
     assert isinstance(fixture_mock_llmmodel, ExtractContextFromException)

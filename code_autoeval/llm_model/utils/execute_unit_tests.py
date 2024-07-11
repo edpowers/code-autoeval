@@ -4,7 +4,7 @@ import contextlib
 import os
 import subprocess
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 
 import pandas as pd
 from multiuse.model import class_data_model
@@ -21,7 +21,6 @@ class ExecuteUnitTests(
     preprocess_code_before_exec.PreProcessCodeBeforeExec,
     extraction.ParseUnitTestCoverage,
 ):
-
     coverage_result: subprocess.CompletedProcess = None
 
     def parse_existing_tests_or_raise_exception(
@@ -31,7 +30,7 @@ class ExecuteUnitTests(
         class_model: Optional[class_data_model.ClassDataModel] = None,
         attempt: int = 0,
         error_message: str = "",
-    ) -> Tuple[str, pd.DataFrame, Dict[str, Any], str]:
+    ) -> model.UnitTestSummary:
         """Parse the existing tests or raise an exception if tests are missing."""
         if (
             function_attributes.test_absolute_file_path
@@ -41,21 +40,15 @@ class ExecuteUnitTests(
             and attempt == 0
             and not error_message
         ):
-            if unit_test_coverage_missing := self.run_tests(
+            unit_test_summary = self.run_tests(
                 function_attributes.test_absolute_file_path,
                 class_model,
                 df,
-            ):
-                raise model.MissingCoverageException(
-                    "Tests failed or coverage is not 100%"
-                )
+            )
 
-        return (
-            "",
-            df,
-            {},
-            "",
-        )
+            return unit_test_summary.return_or_raise()
+
+        return model.UnitTestSummary.create_empty()
 
     def write_code_and_tests(
         self,

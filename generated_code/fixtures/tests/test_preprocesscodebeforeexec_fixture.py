@@ -1,6 +1,6 @@
 from code_autoeval.llm_model.utils.code_cleaning.run_pyflakes_isort import RunPyflakesIsort
-from code_autoeval.llm_model.imports.run_flake8_fix_imports import RunFlake8FixImports
 from code_autoeval.llm_model.imports.extract_imports_from_file import ExtractImportsFromFile
+from code_autoeval.llm_model.imports.run_flake8_fix_imports import RunFlake8FixImports
 from code_autoeval.llm_model.utils.validation.validate_regexes import ValidateRegexes
 import pytest
 from generated_code.fixtures.fixtures.preprocesscodebeforeexec_fixture import fixture_mock_preprocesscodebeforeexec

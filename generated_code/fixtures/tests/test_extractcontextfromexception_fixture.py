@@ -9,3 +9,7 @@ def test_mock_extractcontextfromexception(fixture_mock_extractcontextfromexcepti
     assert callable(fixture_mock_extractcontextfromexception.create_llm_error_prompt)
     assert hasattr(fixture_mock_extractcontextfromexception, 'format_error')
     assert callable(fixture_mock_extractcontextfromexception.format_error)
+    assert hasattr(fixture_mock_extractcontextfromexception, 'error_message')
+    assert isinstance(fixture_mock_extractcontextfromexception.error_message, str)
+    assert hasattr(fixture_mock_extractcontextfromexception, 'formatted_error')
+    assert isinstance(fixture_mock_extractcontextfromexception.formatted_error, str)

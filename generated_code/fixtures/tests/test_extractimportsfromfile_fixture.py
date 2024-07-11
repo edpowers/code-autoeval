@@ -3,10 +3,6 @@ from generated_code.fixtures.fixtures.extractimportsfromfile_fixture import fixt
 from code_autoeval.llm_model.imports.extract_imports_from_file import ExtractImportsFromFile
 from pathlib import Path
 from typing import Any, Dict
-from generated_code.fixtures.fixtures.loggingfuncs_fixture import fixture_mock_loggingfuncs
-from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
-from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
-from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
 def test_mock_extractimportsfromfile(fixture_mock_extractimportsfromfile):
     assert isinstance(fixture_mock_extractimportsfromfile, ExtractImportsFromFile)
     assert hasattr(fixture_mock_extractimportsfromfile, '_read_in_original_code')

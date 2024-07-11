@@ -4,11 +4,15 @@ from typing import Dict, Tuple
 
 from pydantic import BaseModel, Field, computed_field
 
+from code_autoeval.llm_model.utils.model.custom_exceptions import (
+    MissingCoverageException,
+)
+
 
 class UnitTestSummary(BaseModel):
 
     uncovered_lines: Dict[Tuple[int, int], str] = Field(
-        default=(None, None),
+        default=dict,
         description="The lines that were not covered by the unit tests.",
     )
 
@@ -25,7 +29,7 @@ class UnitTestSummary(BaseModel):
     @computed_field
     def is_coverage_missing(self) -> bool:
         """Flag to indicate if the coverage is missing."""
-        return len(self.uncovered_lines) > 0
+        return self.recalculated_coverage < 100
 
     @computed_field
     def is_fully_covered(self) -> bool:
@@ -41,3 +45,15 @@ class UnitTestSummary(BaseModel):
         print(f"Is fully covered: {self.is_fully_covered}")
 
         return self
+
+    @classmethod
+    def create_empty(cls) -> "UnitTestSummary":
+        """Create an empty UnitTestSummary instance with default values."""
+        return cls()
+
+    def return_or_raise(self) -> "UnitTestSummary":
+        """Return the instance if the coverage is 100%, otherwise raise an exception."""
+        if self.is_fully_covered:
+            return self
+
+        raise MissingCoverageException("Tests failed or coverage is not 100%")

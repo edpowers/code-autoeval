@@ -6,6 +6,9 @@ from typing import Optional
 
 class ExtractContextFromException:
 
+    error_message: str = ""  # Instance variable to store the error message
+    formatted_error: str = ""  # Instance variable to store the formatted error
+
     def format_error(
         self,
         exception: Exception,
@@ -43,7 +46,9 @@ class ExtractContextFromException:
         {generated_code}
         """
 
-        return formatted_description.strip()
+        self.formatted_error = formatted_description.strip()
+
+        return self.formatted_error
 
     def _get_relevant_code(
         self, code: str, error_line: int, context_lines: int = 3
@@ -61,10 +66,12 @@ class ExtractContextFromException:
         return "\n".join(numbered_lines)
 
     def create_llm_error_prompt(self, formatted_error: str) -> str:
-        return f"""
+        self.error_message = f"""
         The previous code generation attempt resulted in an error. Here are the details:
 
         {formatted_error}
 
         Please analyze this error and provide a corrected version of the code that addresses the issue.
         """
+
+        return self.error_message

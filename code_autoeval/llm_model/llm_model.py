@@ -66,14 +66,13 @@ class LLMModel(
         # Replace the self.common class_logger with the class_model class
         self.common.class_logger = class_model.class_logger
 
-        error_message = ""
         error_formatter = extraction.ExtractContextFromException()
+        unit_test_summary: model.UnitTestSummary = model.UnitTestSummary()
+
         code = ""
         pytest_tests = ""
-        unit_test_summary: model.UnitTestSummary = model.UnitTestSummary()
-        goal = goal or ""
         system_prompt = self.generate_system_prompt(
-            query, goal, function_attributes, class_model=class_model
+            query, goal or "", function_attributes, class_model=class_model
         )
 
         self._log_code(system_prompt, intro_message="System prompt")
@@ -88,12 +87,16 @@ class LLMModel(
 
         for attempt in range(max_retries):
             try:
-                if return_tuple := self.parse_existing_tests_or_raise_exception(
-                    function_attributes, df, class_model, attempt, error_message
+                if unit_test_summary := self.parse_existing_tests_or_raise_exception(
+                    function_attributes,
+                    df,
+                    class_model,
+                    attempt,
+                    error_formatter.error_message,
                 ):
                     # If the first item of the return dict is valid, then return it.
-                    if return_tuple[0]:
-                        return return_tuple
+                    if unit_test_summary.is_fully_covered:
+                        return code, None, {}, pytest_tests
 
                 if (
                     attempt == 0
@@ -104,12 +107,12 @@ class LLMModel(
                     coverage_report = self.get_coverage_report(
                         function_name=self.init_kwargs.func_name,
                         coverage_result=self.coverage_result,
-                        error_message=error_message,
+                        error_message=error_formatter.error_message,
                     )
 
                     clarification_prompt = self.generate_clarification_prompt(
                         query,
-                        error_message,
+                        error_formatter.error_message,
                         coverage_report=coverage_report,
                         previous_code=code,
                         pytest_tests=pytest_tests,
@@ -154,17 +157,7 @@ class LLMModel(
                     df,
                 )
 
-                if unit_test_summary.is_fully_covered:
-                    return (
-                        code,
-                        self.serialize_dataframe(result),
-                        context,
-                        pytest_tests,
-                    )
-                else:
-                    raise model.MissingCoverageException(
-                        "Tests failed or coverage is not 100%"
-                    )
+                unit_test_summary.return_or_raise()
 
             # Catch alls for code - formatting errors.
             except model.FormattingError as se:
@@ -179,24 +172,23 @@ class LLMModel(
                 continue
 
             except model.MissingCoverageException as e:
-                error_message = str(e)
+                error_formatter.error_message = str(e)
                 self._log_code(
-                    f"Attempt {attempt + 1} - {error_message}",
+                    f"Attempt {attempt + 1} - {error_formatter.error_message}",
                     "Insufficient coverage: ",
                 )
                 # Pass the error message to the next iteration
                 continue
             except Exception as e:
-                formatted_error = error_formatter.format_error(e)
-                error_message = error_formatter.create_llm_error_prompt(formatted_error)
+                error_formatter.create_llm_error_prompt(error_formatter.format_error(e))
 
                 # Now let's add in the context for what caused this error - including
                 # the line numbers and the code that was generated.
                 if debug:
                     print(
-                        f"Attempt {attempt + 1} - Error executing generated code {error_message}"
+                        f"Attempt {attempt + 1} - Error executing generated code {error_formatter.error_message}"
                     )
-                    pprint(formatted_error)
+                    pprint(error_formatter.formatted_error)
                 # Pass the error message to the next iteration
                 continue
 

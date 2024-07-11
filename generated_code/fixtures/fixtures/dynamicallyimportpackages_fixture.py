@@ -8,7 +8,7 @@ from generated_code.fixtures.fixtures.loggingfuncs_fixture import fixture_mock_l
 from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
 from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
 from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
-@pytest.fixture(name="fixture_mock_dynamicallyimportpackages")
+@pytest.fixture
 def fixture_mock_dynamicallyimportpackages():
     mock = MagicMock(spec=DynamicallyImportPackages)
     mock.coverage_result = None
