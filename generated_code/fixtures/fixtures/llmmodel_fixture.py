@@ -12,8 +12,10 @@ from generated_code.fixtures.fixtures.executeunittests_fixture import fixture_mo
 from generated_code.fixtures.fixtures.extractcontextfromexception_fixture import fixture_mock_extractcontextfromexception
 from generated_code.fixtures.fixtures.generatefakedata_fixture import fixture_mock_generatefakedata
 from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
-from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
+from generated_code.fixtures.fixtures.functionargumentfinder_fixture import fixture_mock_functionargumentfinder
+from generated_code.fixtures.fixtures.globalimports_fixture import fixture_mock_globalimports
 from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
+from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
 @pytest.fixture
 def fixture_mock_llmmodel():
     mock = MagicMock(spec=LLMModel)

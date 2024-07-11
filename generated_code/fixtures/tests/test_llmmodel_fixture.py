@@ -1,7 +1,7 @@
+from code_autoeval.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
+from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
 from code_autoeval.llm_model.utils.execute_unit_tests import ExecuteUnitTests
 from code_autoeval.llm_model.utils.extraction.extract_context_from_exception import ExtractContextFromException
-from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
-from code_autoeval.llm_model.utils.execute_generated_code import ExecuteGeneratedCode
 import pytest
 from generated_code.fixtures.fixtures.llmmodel_fixture import fixture_mock_llmmodel
 from code_autoeval.llm_model.llm_model import LLMModel

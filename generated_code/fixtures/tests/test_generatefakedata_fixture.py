@@ -1,9 +1,9 @@
-from code_autoeval.llm_model.utils.preprocess_code_before_execution import PreProcessCodeBeforeExecution
-from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
 from code_autoeval.llm_model.utils.system_prompts import SystemPrompts
-from code_autoeval.llm_model.utils.preprocess_code_before_execution import PreProcessCodeBeforeExecution
+from code_autoeval.llm_model.utils.preprocess_code_before_exec import PreProcessCodeBeforeExec
 from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
+from code_autoeval.llm_model.utils.preprocess_code_before_exec import PreProcessCodeBeforeExec
 from code_autoeval.llm_model.utils.system_prompts import SystemPrompts
+from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
 import pytest
 from generated_code.fixtures.fixtures.generatefakedata_fixture import fixture_mock_generatefakedata
 from code_autoeval.llm_model.utils.generate_fake_data import GenerateFakeData
@@ -25,5 +25,5 @@ def test_mock_generatefakedata(fixture_mock_generatefakedata):
     assert hasattr(fixture_mock_generatefakedata, 'unique_imports_dict')
     assert isinstance(fixture_mock_generatefakedata.unique_imports_dict, Dict)
     assert isinstance(fixture_mock_generatefakedata, StreamResponse)
-    assert isinstance(fixture_mock_generatefakedata, PreProcessCodeBeforeExecution)
+    assert isinstance(fixture_mock_generatefakedata, PreProcessCodeBeforeExec)
     assert isinstance(fixture_mock_generatefakedata, SystemPrompts)

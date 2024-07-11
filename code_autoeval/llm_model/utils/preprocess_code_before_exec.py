@@ -5,39 +5,26 @@ from typing import Optional, Tuple
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.code_cleaning.run_flake8_fix_imports import (
-    RunFlake8FixImports,
-)
-from code_autoeval.llm_model.utils.code_cleaning.run_pyflakes_isort import (
-    RunPyflakesIsort,
-)
-from code_autoeval.llm_model.utils.extraction.extract_classes_from_file import (
-    PythonClassManager,
-)
-from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
-    ExtractImportsFromFile,
-)
+from code_autoeval.llm_model import imports
 
-from code_autoeval.llm_model.utils.model import function_attributes
-from code_autoeval.llm_model.utils.validation.validate_regexes import (
-    ValidateRegexes,
-    validate_code,
-)
-
+from code_autoeval.llm_model.utils import model, extraction, code_cleaning, validation
 # import flake8
 
 
-class PreProcessCodeBeforeExecution(
-    ValidateRegexes, RunPyflakesIsort, ExtractImportsFromFile, RunFlake8FixImports
+class PreProcessCodeBeforeExec(
+    validation.ValidateRegexes,
+    code_cleaning.RunPyflakesIsort,
+    imports.ExtractImportsFromFile,
+    imports.RunFlake8FixImports,
 ):
 
-    @validate_code()
+    @validation.validate_code()
     def run_preprocess_pipeline(
         self,
         code: str,
         max_line_length: int = 120,
         class_model: Optional[class_data_model.ClassDataModel] = None,
-        func_attributes: function_attributes.FunctionAttributes = None,
+        func_attributes: model.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,
     ) -> str:
@@ -71,12 +58,12 @@ class PreProcessCodeBeforeExecution(
 
         return code
 
-    @validate_code()
+    @validation.validate_code()
     def preprocess_code(
         self,
         code: str,
         class_model: Optional[class_data_model.ClassDataModel] = None,
-        func_attributes: function_attributes.FunctionAttributes = None,
+        func_attributes: model.FunctionAttributes = None,
         is_pytest_format: bool = False,
         **kwargs,
     ) -> Tuple[str, bool]:
@@ -88,7 +75,7 @@ class PreProcessCodeBeforeExecution(
         if is_pytest_format:
             # Then verify that we don't have the class definition in the test file.
             # the class definition would be provided by the class_model
-            code = PythonClassManager.extract_remove_class_from_file(
+            code = extraction.PythonClassManager.extract_remove_class_from_file(
                 class_model.class_name,
                 file_path=str(func_attributes.test_absolute_file_path),
                 content=code,
@@ -98,7 +85,7 @@ class PreProcessCodeBeforeExecution(
             code, class_model=class_model, original_imports=original_imports, **kwargs
         )
 
-    @validate_code()
+    @validation.validate_code()
     def remove_non_code_patterns(
         self, code: str, is_pytest_format: bool = False, **kwargs
     ) -> str:

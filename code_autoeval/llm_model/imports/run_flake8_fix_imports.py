@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.validation.validate_regexes import validate_code
+from code_autoeval.llm_model.utils.validation import validate_code
 
 
 class RunFlake8FixImports:

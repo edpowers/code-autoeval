@@ -1,3 +1,4 @@
+from code_autoeval.llm_model.utils.log_funcs.logging_funcs import LoggingFuncs
 import pytest
 from generated_code.fixtures.fixtures.parseunittestcoverage_fixture import fixture_mock_parseunittestcoverage
 from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import ParseUnitTestCoverage
@@ -11,13 +12,19 @@ def test_mock_parseunittestcoverage(fixture_mock_parseunittestcoverage):
     assert callable(fixture_mock_parseunittestcoverage._find_uncovered_lines)
     assert hasattr(fixture_mock_parseunittestcoverage, '_parse_coverage_output')
     assert callable(fixture_mock_parseunittestcoverage._parse_coverage_output)
+    assert hasattr(fixture_mock_parseunittestcoverage, '_parse_coverage_v1')
+    assert callable(fixture_mock_parseunittestcoverage._parse_coverage_v1)
     assert hasattr(fixture_mock_parseunittestcoverage, '_parse_missing_ranges')
     assert callable(fixture_mock_parseunittestcoverage._parse_missing_ranges)
     assert hasattr(fixture_mock_parseunittestcoverage, '_recalculate_coverage')
     assert callable(fixture_mock_parseunittestcoverage._recalculate_coverage)
+    assert hasattr(fixture_mock_parseunittestcoverage, 'get_coverage_report')
+    assert callable(fixture_mock_parseunittestcoverage.get_coverage_report)
     assert hasattr(fixture_mock_parseunittestcoverage, 'run_parse_unit_test_cov')
     assert isinstance(fixture_mock_parseunittestcoverage.run_parse_unit_test_cov, classmethod)
     assert callable(fixture_mock_parseunittestcoverage.run_parse_unit_test_cov.__func__)
+    assert hasattr(fixture_mock_parseunittestcoverage, 'wrap_run_parse_unit_test_cov')
+    assert isinstance(fixture_mock_parseunittestcoverage.wrap_run_parse_unit_test_cov, staticmethod)
     assert hasattr(fixture_mock_parseunittestcoverage, 'coverage_result')
     assert hasattr(fixture_mock_parseunittestcoverage, 'file_path')
     assert isinstance(fixture_mock_parseunittestcoverage.file_path, Path)
@@ -27,5 +34,8 @@ def test_mock_parseunittestcoverage(fixture_mock_parseunittestcoverage):
     assert isinstance(fixture_mock_parseunittestcoverage.absolute_path_from_root, Path)
     assert hasattr(fixture_mock_parseunittestcoverage, 'unique_imports_dict')
     assert isinstance(fixture_mock_parseunittestcoverage.unique_imports_dict, Dict)
+    assert hasattr(fixture_mock_parseunittestcoverage, 'wrap_run_parse_unit_test_cov')
+    assert isinstance(fixture_mock_parseunittestcoverage.wrap_run_parse_unit_test_cov, staticmethod)
     assert hasattr(fixture_mock_parseunittestcoverage, 'run_parse_unit_test_cov')
     assert isinstance(fixture_mock_parseunittestcoverage.run_parse_unit_test_cov, classmethod)
+    assert isinstance(fixture_mock_parseunittestcoverage, LoggingFuncs)

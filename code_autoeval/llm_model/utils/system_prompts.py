@@ -1,10 +1,10 @@
 """Implementation for system prompts."""
 
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.model.function_attributes import FunctionAttributes
+from code_autoeval.llm_model.utils import model
 
 
 class SystemPrompts:
@@ -13,7 +13,7 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
-        function_attributes: FunctionAttributes,
+        function_attributes: model.FunctionAttributes,
         class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> str:
         """Passthrough generation of system prompt."""
@@ -33,7 +33,7 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
-        function_attributes: FunctionAttributes,
+        function_attributes: model.FunctionAttributes,
         class_model: class_data_model.ClassDataModel,
     ) -> str:
         return f"""
@@ -152,7 +152,7 @@ class SystemPrompts:
         self,
         query: str,
         goal: str,
-        function_attributes: FunctionAttributes,
+        function_attributes: model.FunctionAttributes,
     ) -> str:
         return f"""You are an expert Python code generator. Your task is to create Python code that solves a specific problem using a provided function signature.
         Follow these instructions carefully:
@@ -184,8 +184,8 @@ class SystemPrompts:
         coverage_report: Dict[str, Any],
         previous_code: str,
         pytest_tests: str,
-        function_attributes: FunctionAttributes,
-        unit_test_coverage_missing: Dict[str, Any],
+        function_attributes: model.FunctionAttributes,
+        unit_test_coverage_missing: Dict[Tuple[int, int], str],
     ) -> str:
         base_prompt = f"""
         The previous response encountered issues. Please address the following problems and improve the code:

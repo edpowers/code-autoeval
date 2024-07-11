@@ -5,20 +5,18 @@ from typing import Dict, Tuple, Union
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
-    LoggingStatements,
-)
-from code_autoeval.llm_model.utils.model import function_attributes
+from code_autoeval.llm_model.utils import model
+from code_autoeval.llm_model.utils.log_funcs import logging_funcs
 
 
-class ExtractImportsFromFile(LoggingStatements):
+class ExtractImportsFromFile(logging_funcs.LoggingFuncs):
     """Auto-extract imports from file."""
 
     @classmethod
     def find_original_code_and_imports(
         cls,
         func_or_class_model: Union[
-            function_attributes.FunctionAttributes, class_data_model.ClassDataModel
+            model.FunctionAttributes, class_data_model.ClassDataModel
         ],
     ) -> Tuple[str, dict]:
         self = cls()
@@ -29,7 +27,7 @@ class ExtractImportsFromFile(LoggingStatements):
     def _read_in_original_code(
         self,
         func_or_class_model: Union[
-            function_attributes.FunctionAttributes, class_data_model.ClassDataModel
+            model.FunctionAttributes, class_data_model.ClassDataModel
         ],
     ) -> Tuple[str, str]:
         with open(func_or_class_model.module_absolute_path, "r") as file:
@@ -65,13 +63,14 @@ class ExtractImportsFromFile(LoggingStatements):
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
-                    if isinstance(target, ast.Name) and target.id == "__all__":
-                        if isinstance(node.value, ast.List):
-                            all_names = [
-                                elt.s
-                                for elt in node.value.elts
-                                if isinstance(elt, ast.Str)
-                            ]
+                    if (
+                        isinstance(target, ast.Name)
+                        and target.id == "__all__"
+                        and isinstance(node.value, ast.List)
+                    ):
+                        all_names = [
+                            elt.s for elt in node.value.elts if isinstance(elt, ast.Str)
+                        ]
 
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):

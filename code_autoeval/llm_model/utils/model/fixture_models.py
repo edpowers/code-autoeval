@@ -16,7 +16,7 @@ class FixtureInfo(BaseModel):
     class Config:
         arbitrary_types_allowed = True
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"""
         FixtureInfo(
             module_path={self.module_path},

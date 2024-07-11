@@ -37,6 +37,14 @@ class FunctionAttributes(BaseModel):
         None, description="Relative path from the project root to the module file"
     )
 
+    module_generated_absolute_path: Path = Field(
+        None, description="Absolute path to the generated module file"
+    )
+
+    module_generated_relative_path: Path = Field(
+        None, description="Relative path to the generated module file"
+    )
+
     # File paths to unit tests generated for the function
     test_relative_file_path: Path = Field(
         None, description="Relative path to the generated test file"
@@ -68,10 +76,13 @@ class FunctionAttributesFactory:
             func_name
         )
 
-        test_relative_file_path, test_absolute_file_path = (
-            FunctionAttributesFactory._construct_file_paths(
-                func_name, class_model.module_relative_path, generated_base_dir
-            )
+        (
+            test_relative_file_path,
+            test_absolute_file_path,
+            generated_relative_file_path,
+            generated_absolute_file_path,
+        ) = FunctionAttributesFactory._construct_file_paths(
+            func_name, class_model.module_relative_path, generated_base_dir
         )
 
         return FunctionAttributes(
@@ -88,6 +99,8 @@ class FunctionAttributesFactory:
             module_relative_path=class_model.module_relative_path,
             test_relative_file_path=test_relative_file_path,
             test_absolute_file_path=test_absolute_file_path,
+            module_generated_absolute_path=generated_absolute_file_path,
+            module_generated_relative_path=generated_relative_file_path,
         )
 
     @staticmethod
@@ -158,12 +171,20 @@ class FunctionAttributesFactory:
     @staticmethod
     def _construct_file_paths(
         func_name: str, module_relative_path: Path, generated_base_dir: Path
-    ) -> Tuple[Path, Path]:
+    ) -> Tuple[Path, Path, Path, Path]:
         # Construct the test file paths
         test_relative_file_path = (
             Path("tests") / module_relative_path.parent / f"test_{func_name}.py"
         )
+        # Generated relative file paths
+        generated_relative_file_path = (
+            generated_base_dir / module_relative_path.parent / f"{func_name}.py"
+        )
+
+        # Make the absolute path to the test file
         test_absolute_file_path = generated_base_dir / test_relative_file_path
+        # Make the absolute path to the generated file
+        generated_absolute_file_path = generated_base_dir / generated_relative_file_path
 
         # Handle dots in the file name
         if "." in func_name:
@@ -173,8 +194,21 @@ class FunctionAttributesFactory:
             test_absolute_file_path = test_absolute_file_path.with_stem(
                 test_absolute_file_path.stem.replace(".", "_")
             )
+            generated_relative_file_path = generated_relative_file_path.with_stem(
+                generated_relative_file_path.stem.replace(".", "_")
+            )
+
+            generated_absolute_file_path = generated_absolute_file_path.with_stem(
+                generated_absolute_file_path.stem.replace(".", "_")
+            )
 
         # Ensure directories exist
         SystemUtils.make_file_dir(test_absolute_file_path)
+        SystemUtils.make_file_dir(generated_absolute_file_path)
 
-        return (test_relative_file_path, test_absolute_file_path)
+        return (
+            test_relative_file_path,
+            test_absolute_file_path,
+            generated_relative_file_path,
+            generated_absolute_file_path,
+        )

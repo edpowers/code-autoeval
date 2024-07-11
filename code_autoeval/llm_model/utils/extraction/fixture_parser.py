@@ -4,10 +4,7 @@ import ast
 from pathlib import Path
 from typing import Dict, List
 
-from code_autoeval.llm_model.utils.model.fixture_models import (
-    ClassFixtures,
-    FixtureInfo,
-)
+from code_autoeval.llm_model.utils import model
 
 
 class FixtureParser:
@@ -25,10 +22,10 @@ class FixtureParser:
     """
 
     def __init__(self):
-        self.fixtures_by_file: Dict[str, List[FixtureInfo]] = {}
-        self.fixtures_by_class: Dict[str, ClassFixtures] = {}
+        self.fixtures_by_file: Dict[str, List[model.FixtureInfo]] = {}
+        self.fixtures_by_class: Dict[str, model.ClassFixtures] = {}
 
-    def parse_file(self, file_path: str) -> List[FixtureInfo]:
+    def parse_file(self, file_path: str) -> List[model.FixtureInfo]:
         with open(file_path, "r") as file:
             content = file.read()
 
@@ -69,7 +66,7 @@ class FixtureParser:
         for fixture in all_fixtures:
             if fixture.imported_class_name:
                 if fixture.imported_class_name not in self.fixtures_by_class:
-                    self.fixtures_by_class[fixture.imported_class_name] = ClassFixtures(
+                    self.fixtures_by_class[fixture.imported_class_name] = model.ClassFixtures(
                         class_name=fixture.imported_class_name, fixtures=[]
                     )
                 self.fixtures_by_class[fixture.imported_class_name].fixtures.append(
@@ -78,7 +75,7 @@ class FixtureParser:
 
     def _parse_fixture_function(
         self, node: ast.FunctionDef, file_path: str
-    ) -> FixtureInfo:
+    ) -> model.FixtureInfo:
         if not self._is_fixture(node):
             return None
         fixture_name = node.name
@@ -93,7 +90,7 @@ class FixtureParser:
                             self._extract_mock_info(stmt.value)
                         )
 
-        return FixtureInfo(
+        return model.FixtureInfo(
             module_path=file_path,
             fixture_name=fixture_name,
             imported_class_name=imported_class_name,
@@ -135,9 +132,9 @@ class FixtureParser:
 
         return imported_class_name, fixture_class_name
 
-    def get_fixtures_for_class(self, class_name: str) -> ClassFixtures:
+    def get_fixtures_for_class(self, class_name: str) -> model.ClassFixtures:
         return self.fixtures_by_class.get(
-            class_name, ClassFixtures(class_name=class_name, fixtures=[])
+            class_name, model.ClassFixtures(class_name=class_name, fixtures=[])
         )
 
     def print_all_fixtures(self):

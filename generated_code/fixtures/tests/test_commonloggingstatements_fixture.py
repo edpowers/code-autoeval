@@ -2,7 +2,7 @@ from code_autoeval.llm_model.utils.base_llm_class import BaseLLMClass
 from code_autoeval.llm_model.utils.base_llm_class import BaseLLMClass
 import pytest
 from generated_code.fixtures.fixtures.commonloggingstatements_fixture import fixture_mock_commonloggingstatements
-from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import CommonLoggingStatements
+from code_autoeval.llm_model.utils.log_funcs.common_logging_statements import CommonLoggingStatements
 from pathlib import Path
 from typing import Any, Dict
 def test_mock_commonloggingstatements(fixture_mock_commonloggingstatements):

@@ -7,10 +7,10 @@ from typing import Any, Dict
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.code_cleaning.run_flake8_fix_imports import (
+from code_autoeval.llm_model.imports.run_flake8_fix_imports import (
     RunFlake8FixImports,
 )
-from code_autoeval.llm_model.utils.extraction.extract_imports_from_file import (
+from code_autoeval.llm_model.imports.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
 
@@ -118,7 +118,7 @@ class SplitAndVerifyCode:
         except SyntaxError as e:
             raise CodeVerificationError(
                 f"Syntax error in fixture code: {str(e)}", fixture_code, "fixture"
-            )
+            ) from e
 
         try:
             if not instance.verify_test_code(test_code):
@@ -128,7 +128,7 @@ class SplitAndVerifyCode:
         except SyntaxError as e:
             raise CodeVerificationError(
                 f"Syntax error in test code: {str(e)}", test_code, "test"
-            )
+            ) from e
 
         return fixture_code, test_code
 
@@ -142,9 +142,9 @@ class SplitAndVerifyCode:
             has_fixture = False
 
             for node in ast.walk(tree):
-                if isinstance(node, ast.Import) or isinstance(node, ast.ImportFrom):
+                if isinstance(node, (ast.Import, ast.ImportFrom)):
                     for name in node.names:
-                        if name.name == "MagicMock" or name.name == "unittest.mock":
+                        if name.name in ["MagicMock", "unittest.mock"]:
                             has_mock_import = True
                         elif name.name == "pytest":
                             has_pytest_import = True
@@ -263,7 +263,7 @@ class SplitAndVerifyCode:
     def clean_code(code: str) -> str:
         # If the first line strip() ends with .py, then add a # to the start of the line
         if code.strip().split("\n")[0].strip().endswith(".py"):
-            code = "# " + code
+            code = f"# {code}"
 
         # Remove markdown code block syntax if present
         code = re.sub(r"```python\n|```$", "", code, flags=re.MULTILINE)

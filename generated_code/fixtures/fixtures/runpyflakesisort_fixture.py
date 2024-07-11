@@ -3,10 +3,10 @@ import pytest
 from code_autoeval.llm_model.utils.code_cleaning.run_pyflakes_isort import RunPyflakesIsort
 from pathlib import Path
 from typing import Any, Dict
-from code_autoeval.llm_model.utils.logging_statements.logging_statements import LoggingStatements
-from generated_code.fixtures.fixtures.loggingstatements_fixture import fixture_mock_loggingstatements
-from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
+from code_autoeval.llm_model.utils.log_funcs.logging_funcs import LoggingFuncs
+from generated_code.fixtures.fixtures.loggingfuncs_fixture import fixture_mock_loggingfuncs
 from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
+from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
 from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
 @pytest.fixture
 def fixture_mock_runpyflakesisort():

@@ -11,14 +11,14 @@ import numpy as np
 import pandas as pd
 from multiuse.model import class_data_model
 from pydantic import BaseModel
+
+from code_autoeval.llm_model import imports
 from code_autoeval.llm_model.hierarchy.fixture_generation.split_and_verify_code import (
-    CodeVerificationError,
-    EmptyTestCodeError,
-    SplitAndVerifyCode,
-    TestCodeVerificationError,
-)
-from code_autoeval.llm_model.utils import extraction
-from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
+    CodeVerificationError, EmptyTestCodeError, SplitAndVerifyCode,
+    TestCodeVerificationError)
+
+
+from code_autoeval.llm_model.utils import model_response
 
 IMPORT_BANK = {
     "Path": "from pathlib import Path",
@@ -33,14 +33,14 @@ IMPORT_BANK = {
 
 
 class FixtureGenerator(BaseModel):
-    stream_response: StreamResponse  # Replace with the actual LLM model type
+    stream_response: model_response.StreamResponse  # Replace with the actual LLM model type
     class_hierarchy: Dict[int, Dict[str, dict]]
     class_data_factory: class_data_model.ClassDataModelFactory  # Instantiated
     base_output_dir: str
     project_root: str
     clean_output_dir: bool = True
     unique_project_imports: Dict[str, str] = (
-        extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
+        imports.FindImportsFromDir.find_unique_imports_from_dir()
     )
 
     class Config:
@@ -366,7 +366,7 @@ class FixtureGenerator(BaseModel):
 
             # Update the unique project imports with the fixture code.
             self.unique_project_imports.update(
-                extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir(
+                imports.FindImportsFromDir.find_unique_imports_from_dir(
                     subdirectory_name="generated_code/fixtures"
                 )
             )

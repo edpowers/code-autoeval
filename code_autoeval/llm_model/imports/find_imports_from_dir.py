@@ -7,7 +7,7 @@ from typing import Dict, List
 from multiuse.filepaths.find_project_root import FindProjectRoot
 from tqdm import tqdm
 
-from code_autoeval.llm_model.utils.extraction import extract_imports_from_file
+from code_autoeval.llm_model.imports import extract_imports_from_file
 
 
 class FindImportsFromDir:

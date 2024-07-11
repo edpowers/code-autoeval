@@ -5,9 +5,7 @@ from typing import List
 
 import astor
 
-from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
-    LoggingStatements,
-)
+from code_autoeval.llm_model.utils.log_funcs import logging_funcs
 
 
 class FileCleaner(ast.NodeTransformer):
@@ -41,7 +39,7 @@ class UnusedArgumentRemover(ast.NodeTransformer):
         return node
 
 
-class AutoFunctionCleaning(LoggingStatements):
+class AutoFunctionCleaning(logging_funcs.LoggingFuncs):
 
     def clean_func_args_from_lines(self, code_lines: List[str]) -> List[str]:
         # Join the lines into a single string

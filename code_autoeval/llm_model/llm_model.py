@@ -6,6 +6,7 @@ from typing import Any, Callable, Dict, Optional, Tuple
 import pandas as pd
 from multiuse.model import class_data_model
 
+from code_autoeval.llm_model import imports
 from code_autoeval.llm_model.utils import (
     execute_generated_code,
     execute_unit_tests,
@@ -13,18 +14,17 @@ from code_autoeval.llm_model.utils import (
     generate_fake_data,
     model,
 )
-from code_autoeval.model.backend_model_kwargs import BackendModelKwargs
 
 
 class LLMModel(
     execute_generated_code.ExecuteGeneratedCode,
     execute_unit_tests.ExecuteUnitTests,
-    extraction.extract_context_from_exception.ExtractContextFromException,
+    extraction.ExtractContextFromException,
     generate_fake_data.GenerateFakeData,
 ):
     """LLM Backend Client Model."""
 
-    def __init__(self, **kwargs: BackendModelKwargs) -> None:
+    def __init__(self, **kwargs: model.BackendModelKwargs) -> None:
         """Initialize the LLM Backend Client Model."""
         super().__init__(**kwargs)
 
@@ -53,12 +53,10 @@ class LLMModel(
         :param skip_generate_fake_data: Whether to skip generating fake data
         """
         self.unique_imports_dict: Dict[str, str] = (
-            extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
+            imports.FindImportsFromDir.find_unique_imports_from_dir()
         )
-        function_attributes = (
-            model.function_attributes.FunctionAttributesFactory.create(
-                func, self.common.generated_base_dir, class_model
-            )
+        function_attributes = model.FunctionAttributesFactory.create(
+            func, self.common.generated_base_dir, class_model
         )
         # Extract function attributes
         self.init_kwargs.__dict__.update(**function_attributes.__dict__)
@@ -69,12 +67,10 @@ class LLMModel(
         self.common.class_logger = class_model.class_logger
 
         error_message = ""
-        error_formatter = (
-            extraction.extract_context_from_exception.ExtractContextFromException()
-        )
+        error_formatter = extraction.ExtractContextFromException()
         code = ""
         pytest_tests = ""
-        unit_test_coverage_missing: Dict[str, Any] = {}
+        unit_test_summary: model.UnitTestSummary = model.UnitTestSummary()
         goal = goal or ""
         system_prompt = self.generate_system_prompt(
             query, goal, function_attributes, class_model=class_model
@@ -105,12 +101,10 @@ class LLMModel(
                 ):
                     c = await self.ask_backend_model(query, system_prompt=system_prompt)
                 else:
-                    coverage_report = (
-                        self.get_coverage_report(
-                            function_name=self.init_kwargs.func_name
-                        )
-                        if "coverage is not 100%" in error_message
-                        else None
+                    coverage_report = self.get_coverage_report(
+                        function_name=self.init_kwargs.func_name,
+                        coverage_result=self.coverage_result,
+                        error_message=error_message,
                     )
 
                     clarification_prompt = self.generate_clarification_prompt(
@@ -119,7 +113,7 @@ class LLMModel(
                         coverage_report=coverage_report,
                         previous_code=code,
                         pytest_tests=pytest_tests,
-                        unit_test_coverage_missing=unit_test_coverage_missing,
+                        unit_test_coverage_missing=unit_test_summary.uncovered_lines,
                         function_attributes=function_attributes,
                     )
                     c = await self.ask_backend_model(
@@ -129,43 +123,38 @@ class LLMModel(
 
                 content = self.figure_out_model_response(c)
 
-                # Removing - need a flag for is_pytest generation vs is code generation
-                # self.validate_func_name_in_code(content, self.init_kwargs.func_name)
                 self._log_code(content, intro_message="Raw content from model")
 
                 code, pytest_tests = self.split_content_from_model(content)
 
                 if code != pytest_tests:
                     self._log_code(code, intro_message="Split result - code")
+
                 self._log_code(
                     pytest_tests, intro_message="Split result - pytest_tests"
                 )
 
-                if class_model:
-                    result, context = {}, {}
-                else:
-                    # Execute the generated code
-                    result, context = self.execute_generated_code(
-                        code,
-                        func=func,
-                        df=df,
-                        debug=debug,
-                    )
-
-                # Write code and tests to files
-                self.write_code_and_tests(
-                    code, pytest_tests, func, class_model, function_attributes
-                )
-
-                unit_test_coverage_missing = self.run_tests(
-                    self.init_kwargs.func_name,
-                    function_attributes.module_absolute_path,
-                    function_attributes.test_absolute_file_path,
-                    df,
+                # Execute the generated code
+                result, context = self.execute_generated_code(
+                    original_code=code,
+                    func_attributes=function_attributes,
+                    df=df,
+                    debug=debug,
                     class_model=class_model,
                 )
 
-                if not unit_test_coverage_missing:
+                # Write code and tests to files
+                self.write_code_and_tests(
+                    code, pytest_tests, class_model, function_attributes
+                )
+
+                unit_test_summary: model.UnitTestSummary = self.run_tests(
+                    function_attributes.test_absolute_file_path,
+                    class_model,
+                    df,
+                )
+
+                if unit_test_summary.is_fully_covered:
                     return (
                         code,
                         self.serialize_dataframe(result),
@@ -173,12 +162,12 @@ class LLMModel(
                         pytest_tests,
                     )
                 else:
-                    raise model.custom_exceptions.MissingCoverageException(
+                    raise model.MissingCoverageException(
                         "Tests failed or coverage is not 100%"
                     )
 
             # Catch alls for code - formatting errors.
-            except model.custom_exceptions.FormattingError as se:
+            except model.FormattingError as se:
 
                 file_path_to_remove = function_attributes.test_absolute_file_path
                 self._log_code(
@@ -189,7 +178,7 @@ class LLMModel(
                 file_path_to_remove.unlink(missing_ok=True)
                 continue
 
-            except model.custom_exceptions.MissingCoverageException as e:
+            except model.MissingCoverageException as e:
                 error_message = str(e)
                 self._log_code(
                     f"Attempt {attempt + 1} - {error_message}",

@@ -1,11 +1,11 @@
 """Inherit from all other logging statements classes."""
 
-from code_autoeval.llm_model.utils.logging_statements.common_logging_statements import (
+from code_autoeval.llm_model.utils.log_funcs.common_logging_statements import (
     CommonLoggingStatements,
 )
 
 
-class LoggingStatements(
+class LoggingFuncs(
     CommonLoggingStatements,
 ):
     """Inherit from all other logging statements classes."""

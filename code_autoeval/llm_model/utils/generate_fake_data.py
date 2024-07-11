@@ -9,13 +9,13 @@ import pandas as pd
 from faker import Faker
 
 from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
-from code_autoeval.llm_model.utils.preprocess_code_before_execution import (
-    PreProcessCodeBeforeExecution,
+from code_autoeval.llm_model.utils.preprocess_code_before_exec import (
+    PreProcessCodeBeforeExec,
 )
 from code_autoeval.llm_model.utils.system_prompts import SystemPrompts
 
 
-class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExecution, SystemPrompts):
+class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExec, SystemPrompts):
     """Generate the fake data."""
 
     # @persistent_cache

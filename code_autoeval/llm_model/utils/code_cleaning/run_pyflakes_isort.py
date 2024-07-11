@@ -5,12 +5,10 @@ from typing import Optional, Tuple
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.utils.logging_statements.logging_statements import (
-    LoggingStatements,
-)
+from code_autoeval.llm_model.utils.log_funcs import logging_funcs
 
 
-class RunPyflakesIsort(LoggingStatements):
+class RunPyflakesIsort(logging_funcs.LoggingFuncs):
 
     def run_pyflakes_isort_pipeline(
         self,

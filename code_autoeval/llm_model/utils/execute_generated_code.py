@@ -1,48 +1,54 @@
 """Execute the generated code."""
 
-import importlib
-import inspect
-import logging
-import os
 import re
-import subprocess
-import sys
-import tempfile
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Dict, Optional, Tuple
 
-import numpy as np
 import pandas as pd
+from multiuse.model import class_data_model
+from pydantic import Field
 
+from code_autoeval.llm_model import imports
 from code_autoeval.llm_model.utils import (
-    find_parent_class,
-    preprocess_code_before_execution,
+    extraction,
+    model,
+    model_response,
+    preprocess_code_before_exec,
     validation,
 )
-from code_autoeval.llm_model.utils.model_response import serializing_dataframes
 
 
 class ExecuteGeneratedCode(
-    serializing_dataframes.SerializeDataframes,
-    preprocess_code_before_execution.PreProcessCodeBeforeExecution,
-    find_parent_class.FindParentClass,
-    validation.validate_regexes.ValidateRegexes,
+    model_response.SerializeDataframes,
+    preprocess_code_before_exec.PreProcessCodeBeforeExec,
+    extraction.FindParentClass,
+    validation.ValidateRegexes,
+    imports.ExtractImportsFromFile,
+    imports.DynamicallyImportPackages,
 ):
 
-    imported_libraries: set = set()
+    imported_libraries: set = Field(default_factory=set)
 
-    def get_imported_libraries(self) -> set:
-        """Return the set of imported libraries."""
-        return self.imported_libraries
+    global_imports: imports.GlobalImports = Field(default_factory=imports.GlobalImports)
+
+    function_argument_finder: extraction.FunctionArgumentFinder = Field(
+        default_factory=extraction.FunctionArgumentFinder
+    )
 
     def execute_generated_code(
         self,
         original_code: str,
-        func: Callable[..., Any],
+        func_attributes: model.FunctionAttributes,
         df: Optional[pd.DataFrame] = None,
         debug: bool = False,
+        class_model: Optional[class_data_model.ClassDataModel] = None,
     ) -> Tuple[Any, Dict[str, Any]]:
         """
         Executes the generated Python code and returns the result and context.
+
+        If the class model is provided, then return empty dictionaries and
+        skip running the code.
+
+        TODO: Add support for running existing code rather than skipping it.
 
         :param code: The code to execute
         :param func: The original function object
@@ -50,41 +56,31 @@ class ExecuteGeneratedCode(
         :param debug: Whether to print debug information
         :return: A tuple containing the result and the execution context
         """
+        if class_model:
+            return {}, {}
+
         # Create a new dictionary for local variables
         local_vars = {}
+        # Add the input dataframe to the local variables if provided
+        if isinstance(df, pd.DataFrame) and not df.empty:
+            local_vars["df"] = df
 
-        # self._log_code(original_code, "Original code:")
         # Remove markdown code blocks if present
         code = self.remove_non_code_patterns(
             original_code, code_type="function", func_name=self.init_kwargs.func_name
         )
-        # self._log_code(code, "Formatted code:")
 
-        # Add necessary imports and functions to the global scope
-        global_vars = {
-            "pd": pd,
-            "np": np,
-            "deserialize_dataframe": self.deserialize_dataframe,
-            "logging": logging,  # Add logging explicitly
-            "os": os,  # Add os explicitly
-            "re": re,  # Add re explicitly
-            "subprocess": subprocess,  # Add subprocess explicitly
-            "sys": sys,  # Add sys explicitly
-            "tempfile": tempfile,  # Add tempfile explicitly
-            "importlib": importlib,  # Add importlib explicitly
-            "inspect": inspect,  # Add inspect explicitly
-        }
+        self.global_imports = self.global_imports.create_global_imports()
+        global_vars = self.global_imports.run_global_imports()
 
-        # Add all previously imported libraries
-        for lib in self.imported_libraries:
-            global_vars[lib] = importlib.import_module(lib)
-
-        # Add the input dataframe to the local variables if provided
-        if df is not None:
-            local_vars["df"] = df
-
+        # TODO: Test this.
         # Extract import statements
-        imports = self.extract_imports_from_gen_code(code)
+        import_dict = self.extract_imports(
+            code, str(func_attributes.module_relative_path)
+        )
+        imports = "\n".join(list(import_dict.values()))
+        # Log the value of the imports
+        self._log_code(imports, "Extracted Imports:")
 
         # Execute imports separately
         exec(imports, global_vars)
@@ -94,18 +90,12 @@ class ExecuteGeneratedCode(
         # Execute the code
         try:
             # Import required libraries
-            self.import_required_libraries(main_code)
-            # Update global_vars with newly imported libraries
-            for lib in self.imported_libraries:
-                if lib not in global_vars:
-                    global_vars[lib] = importlib.import_module(lib)
+            imported_libs = self.import_required_libraries(main_code)
 
-            # Find and extract the target in the code
-            method_name = func.__name__.split(".")[-1]
             # Find the target in the code
             target_node = self.find_target_in_code(
                 main_code,
-                method_name,
+                func_attributes.method_name,
             )
             # Target source
             target_source, parent_class_name = self.find_and_extract_target(
@@ -123,14 +113,13 @@ class ExecuteGeneratedCode(
 
                 parent_class = local_vars[parent_class_name]
                 instance = parent_class()
-                generated_func = getattr(instance, method_name)
+                generated_func = getattr(instance, func_attributes.method_name)
 
                 # Wrap the method to handle 'self' automatically
                 def wrapped_method(*args, **kwargs):
                     return generated_func(*args, **kwargs)
 
                 generated_func = wrapped_method
-                # return wrapped_method, local_vars
             else:
                 # Let's also make sure that the split function is in the local_vars
                 parts = self.init_kwargs.func_name.split(".") + [
@@ -146,10 +135,10 @@ class ExecuteGeneratedCode(
                     class_obj = local_vars[class_name]
                     generated_func = getattr(class_obj, method_name)
                 else:
-                    generated_func = local_vars[func.__name__]
+                    generated_func = local_vars[func_attributes.func_name]
 
             # Find the arguments for the generated function
-            args = self.find_args_for_generated_function(generated_func, df, debug)
+            args = self.function_argument_finder.find_args(generated_func, df)
             # Call the function with the prepared arguments
             # Deserialize the result if it's a DataFrame
             result = self.deserialize_dataframe(generated_func(*args))
@@ -166,90 +155,3 @@ class ExecuteGeneratedCode(
 
         except Exception as e:
             raise Exception(f"Error executing code: {str(e)}\n Code:\n {code}") from e
-
-    def import_required_libraries(self, code: str) -> None:
-        """Import required libraries based on the generated code."""
-        # Run flake8 to get import statements
-        with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".py", delete=False
-        ) as temp_file:
-            temp_file.write(code)
-            temp_file_path = temp_file.name
-
-        try:
-            flake8_result = subprocess.run(
-                ["flake8", "--select=F401", temp_file_path],
-                capture_output=True,
-                text=True,
-            )
-
-            # Extract library names from flake8 output
-            libraries = set()
-            for line in flake8_result.stdout.splitlines():
-                parts = line.split("'")
-                if len(parts) >= 2:
-                    lib = parts[1].split(".")[0]
-                    libraries.add(lib)
-
-            # Import libraries that are not already imported
-            for lib in libraries:
-                if lib not in sys.modules and lib not in self.imported_libraries:
-                    try:
-                        importlib.import_module(lib)
-                        self.imported_libraries.add(lib)
-                        print(f"Imported {lib}")
-                    except ImportError:
-                        print(f"Failed to import {lib}")
-        finally:
-            os.unlink(temp_file_path)
-
-            self._log_code("\n".join(self.imported_libraries), "Imported libraries:")
-
-    def extract_imports_from_gen_code(self, code: str) -> str:
-        import_lines = [
-            line
-            for line in code.split("\n")
-            if line.strip().startswith("import ") or line.strip().startswith("from ")
-        ]
-
-        self._log_code("\n".join(import_lines), "Extracted imports:")
-
-        return "\n".join(import_lines)
-
-    def find_args_for_generated_function(
-        self, generated_func: Callable, df: pd.DataFrame, debug: bool = False
-    ) -> List[str | pd.DataFrame]:
-        """Find the arguments for the generated function."""
-        # Prepare arguments for the function call
-        sig = inspect.signature(generated_func)
-        args = []
-
-        if not sig.parameters:
-            return args
-
-        for param_name, param in sig.parameters.items():
-            if param_name == "df":
-                if df is not None:
-                    args.append(df)
-                else:
-                    raise ValueError("DataFrame is required but not provided")
-            elif param.annotation == str and df is not None and len(df.columns) > 0:
-                # Assume string parameters are column names, use the first column if df is provided
-                args.append(df.columns[0])
-            elif param.default != inspect.Parameter.empty:
-                # Use default value if available
-                args.append(param.default)
-            elif str(param) in {"*args", "**kwargs"}:
-                # Skip these parameters
-                continue
-            else:
-                print(f"Unable to determine value for parameter '{param_name}'")
-                # For other cases, raise an error
-                # raise ValueError(  # TODO: Add back errors.
-                #    f"Unable to determine value for parameter '{param_name}'"
-                # )
-
-        if debug:
-            print(f"Calling {self.init_kwargs.func_name} with args: {args}")
-
-        return args

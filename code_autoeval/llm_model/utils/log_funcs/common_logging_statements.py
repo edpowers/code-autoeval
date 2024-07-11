@@ -48,7 +48,7 @@ class CommonLoggingStatements(BaseLLMClass):
         if self.init_kwargs.debug:
             self.common.class_logger.debug(f"Generated fake DataFrame: {fake_data}")
 
-    def _log_code(self, code: str, intro_message: str = "Generated Code") -> None:
+    def _log_code(self, code: Any, intro_message: str = "Generated Code") -> None:
         """Log the generated code."""
         if self.init_kwargs.debug:
             self.common.class_logger.debug(f"{intro_message}\n{code}")

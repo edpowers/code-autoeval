@@ -25,10 +25,9 @@ path_cwd = Path(os.getcwd()).parent
 if str(path_cwd) not in sys.path:
     sys.path.insert(0, str(path_cwd))
 
-
+from code_autoeval.llm_model import imports
 from code_autoeval.llm_model.llm_model import LLMModel
 from code_autoeval.llm_model.utils import extraction
-
 
 # %%
 
@@ -195,7 +194,7 @@ async def main2() -> None:
 llm_model_client = LLMModel()
 
 unique_imports = (
-    extraction.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
+    imports.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
 )
 
 
@@ -245,12 +244,12 @@ fixture_parser.get_fixtures_for_class(class_data_models[1].class_name)
 
 
 async def generate_code_for_classes(
-    class_data_models: List[ClassDataModel],
+    class_data_models: List[class_data_model.ClassDataModel],
     llm_model_client: LLMModel,
     generated_code_dir: Path,
     clean_directory_before_start: bool = True,
     goal: str = "Refactor code to handle edge cases and improve efficiency.",
-    fixture_parser: Optional[FixtureParser] = None,
+    fixture_parser: Optional[extraction.fixture_parser.FixtureParser] = None,
 ) -> None:
 
     if clean_directory_before_start:
