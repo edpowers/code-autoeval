@@ -4,7 +4,7 @@ import pytest
 from generated_code.fixtures.fixtures.streamresponse_fixture import fixture_mock_streamresponse
 from code_autoeval.llm_model.utils.model_response.stream_response import StreamResponse
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_streamresponse(fixture_mock_streamresponse):
     assert isinstance(fixture_mock_streamresponse, StreamResponse)
     assert hasattr(fixture_mock_streamresponse, 'ask_backend_model')

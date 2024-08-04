@@ -31,11 +31,12 @@ class ValidateRegexes:
     def validate_test_in_pytest_code(self, pytest_code: str) -> None:
         """Validate that the test is in the pytest code."""
         if "def test_" not in pytest_code:
+            pprint(pytest_code)
             raise ValueError(f"pytest_tests must be in {pytest_code}")
 
     def validate_target_node(self, target_node: Any, func_name: str) -> None:
         """Validate target node."""
-        if target_node is None:
+        if target_node is None or not target_node:
             raise ValueError(f"Target node not found for function {func_name}")
 
     def validate_class_name_in_local_vars(
@@ -64,6 +65,7 @@ def validate_code() -> Callable:
                 The type of code to validate. Must be 'function' or 'pytest'
             """
             validator = ValidateRegexes()
+
             result = func(*args, **kwargs)
 
             if isinstance(result, tuple) and len(result) == 2:

@@ -3,7 +3,7 @@
 import asyncio
 import inspect
 from pathlib import Path
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 from multiuse.filepaths.system_utils import SystemUtils
 from multiuse.model import class_data_model
@@ -17,6 +17,10 @@ class FunctionAttributes(BaseModel):
     function_signature: str
     function_docstring: str
     function_body: str
+    function_params: dict[str, Any]
+    function_return_type: Any = Field(
+        default="Any", description="The return type of the function"
+    )
     class_name: str = Field(
         default="",
         description="If the function is a method, this will be the class name",
@@ -88,8 +92,10 @@ class FunctionAttributesFactory:
         return FunctionAttributes(
             func_name=func_name,
             function_signature=FunctionAttributesFactory._get_function_signature(func),
+            function_params=FunctionAttributesFactory._get_function_params(func),
             function_docstring=FunctionAttributesFactory._get_function_docstring(func),
             function_body=FunctionAttributesFactory._get_function_body(func),
+            function_return_type=inspect.signature(func).return_annotation,
             class_name=class_name,
             method_name=method_name,
             is_coroutine=FunctionAttributesFactory._is_coroutine(
@@ -145,6 +151,27 @@ class FunctionAttributesFactory:
                 pass
         # Join the remaining lines and dedent
         return inspect.cleandoc("\n".join(source_lines))
+
+    @staticmethod
+    def _get_function_params(func: Callable) -> Dict[str, Any]:
+        signature = inspect.signature(func)
+        params = {}
+
+        for name, param in signature.parameters.items():
+            if name in ("self", "cls"):
+                params[name] = "instance" if name == "self" else "class"
+            elif param.kind == inspect.Parameter.VAR_POSITIONAL:
+                params["*args"] = "tuple"
+            elif param.kind == inspect.Parameter.VAR_KEYWORD:
+                params["**kwargs"] = "dict"
+            else:
+                annotation = param.annotation
+                if annotation is inspect.Parameter.empty:
+                    params[name] = Any
+                else:
+                    params[name] = annotation
+
+        return params
 
     @staticmethod
     def _is_coroutine(

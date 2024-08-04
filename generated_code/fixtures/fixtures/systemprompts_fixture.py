@@ -1,10 +1,11 @@
 from unittest.mock import MagicMock
 import pytest
-from code_autoeval.llm_model.utils.system_prompts import SystemPrompts
+from code_autoeval.llm_model.utils.prompting.system_prompts import SystemPrompts
+from code_autoeval.llm_model.utils.prompting.dynamic_example_prompt import DynamicExamplePrompt
+from generated_code.fixtures.fixtures.dynamicexampleprompt_fixture import fixture_mock_dynamicexampleprompt
 @pytest.fixture
 def fixture_mock_systemprompts():
     mock = MagicMock(spec=SystemPrompts)
-    mock._return_example_output = staticmethod(MagicMock())
     mock.generate_clarification_prompt = MagicMock()
     mock.generate_fake_data_prompt = MagicMock()
     mock.generate_prompt_for_mock_hierarchy = MagicMock()

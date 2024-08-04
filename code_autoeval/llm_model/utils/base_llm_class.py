@@ -3,7 +3,7 @@
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from dotenv import find_dotenv, load_dotenv
 from multiuse.filepaths.find_project_root import FindProjectRoot
@@ -85,9 +85,9 @@ class BaseLLMClass(BaseModelConfig):
     """Base class."""
 
     coverage_result: Any = None  # subprocess completed process
-    file_path: Path | None = None
-    test_file_path: Path | None = None
-    absolute_path_from_root: Path | None = None
+    file_path: Optional[Path] = None
+    test_file_path: Optional[Path] = None
+    absolute_path_from_root: Optional[Path] = None
 
     common: CommonAttributes = Field(default_factory=CommonAttributesFactory.create)
 

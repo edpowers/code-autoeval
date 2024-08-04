@@ -1,6 +1,6 @@
 """Filter the Hierarchical Classes."""
 
-from typing import Dict, Set
+from typing import Dict, List, Set
 
 
 class FilterClassHierarchy:
@@ -56,9 +56,8 @@ class FilterClassHierarchy:
     def is_custom_class(value: type) -> bool:
         return isinstance(value, type) and value.__module__ != "builtins"
 
-    @staticmethod
-    def print_hierarchy_levels(hierarchy_levels: Dict[int, Dict[str, dict]]) -> None:
-        for level, classes in hierarchy_levels.items():
+    def print_hierarchy_levels(self) -> None:
+        for level, classes in self.hierarchy_levels.items():
             print(f"Level {level}:")
             for class_name, class_info in classes.items():
                 print(f"  {class_name}")
@@ -70,3 +69,12 @@ class FilterClassHierarchy:
                 )
                 print(f"    All attributes: {class_info['attributes']}")
             print()
+
+    def flatten_hierarchy(self) -> List[str]:
+        flattened_hierarchy = []
+        for classes in self.hierarchy_levels.values():
+            flattened_hierarchy.extend(
+                class_name for class_name, class_info in classes.items()
+            )
+
+        return flattened_hierarchy

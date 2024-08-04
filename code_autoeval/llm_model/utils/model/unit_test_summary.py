@@ -12,7 +12,7 @@ from code_autoeval.llm_model.utils.model.custom_exceptions import (
 class UnitTestSummary(BaseModel):
 
     uncovered_lines: Dict[Tuple[int, int], str] = Field(
-        default=dict,
+        default={},
         description="The lines that were not covered by the unit tests.",
     )
 
@@ -24,6 +24,11 @@ class UnitTestSummary(BaseModel):
     recalculated_coverage: float = Field(
         default=0,
         description="The recalculated coverage of the unit tests.",
+    )
+
+    tests_failed: bool = Field(
+        default=False,
+        description="Flag to indicate if the tests failed.",
     )
 
     @computed_field
@@ -53,6 +58,9 @@ class UnitTestSummary(BaseModel):
 
     def return_or_raise(self) -> "UnitTestSummary":
         """Return the instance if the coverage is 100%, otherwise raise an exception."""
+        if self.tests_failed:
+            raise MissingCoverageException("Tests failed")
+
         if self.is_fully_covered:
             return self
 

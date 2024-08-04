@@ -7,12 +7,13 @@ from typing import Any, Dict
 
 from multiuse.model import class_data_model
 
-from code_autoeval.llm_model.imports.run_flake8_fix_imports import (
-    RunFlake8FixImports,
-)
 from code_autoeval.llm_model.imports.extract_imports_from_file import (
     ExtractImportsFromFile,
 )
+from code_autoeval.llm_model.imports.run_flake8_fix_imports import (
+    RunFlake8FixImports,
+)
+from code_autoeval.llm_model.utils.model import function_attributes
 
 
 class CodeVerificationError(Exception):
@@ -49,6 +50,7 @@ class SplitAndVerifyCode:
         cls,
         code: str,
         class_model: class_data_model.ClassDataModel,
+        func_attributes: function_attributes.FunctionAttributes,
         unique_project_imports: Dict[str, str],
     ) -> tuple[str, str]:
         """
@@ -96,6 +98,7 @@ class SplitAndVerifyCode:
             RunFlake8FixImports.run_flake8_pipeline_with_temp_file(
                 fixture_code,
                 class_model=class_model,
+                func_attributes=func_attributes,
                 original_imports=original_imports,
                 unique_project_imports=unique_project_imports,
             )
@@ -105,6 +108,7 @@ class SplitAndVerifyCode:
             RunFlake8FixImports.run_flake8_pipeline_with_temp_file(
                 test_code,
                 class_model=class_model,
+                func_attributes=func_attributes,
                 original_imports=original_imports,
                 unique_project_imports=unique_project_imports,
             )

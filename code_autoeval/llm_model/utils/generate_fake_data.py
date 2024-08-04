@@ -12,7 +12,7 @@ from code_autoeval.llm_model.utils.model_response.stream_response import StreamR
 from code_autoeval.llm_model.utils.preprocess_code_before_exec import (
     PreProcessCodeBeforeExec,
 )
-from code_autoeval.llm_model.utils.system_prompts import SystemPrompts
+from code_autoeval.llm_model.utils.prompting.system_prompts import SystemPrompts
 
 
 class GenerateFakeData(StreamResponse, PreProcessCodeBeforeExec, SystemPrompts):

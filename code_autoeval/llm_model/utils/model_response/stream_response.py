@@ -2,12 +2,12 @@
 
 import json
 import re
-from pprint import pprint
 from typing import Any, AsyncIterator, Dict, Tuple
 
 import httpx
 
 from code_autoeval.llm_model.utils.base_llm_class import BaseLLMClass
+from code_autoeval.llm_model.utils.model.custom_exceptions import NoTestsFoundError
 
 
 class StreamResponse(BaseLLMClass):
@@ -37,10 +37,11 @@ class StreamResponse(BaseLLMClass):
             "prompt": user_content,
             "system": system_prompt,
             "stream": True,
+            "keep_alive": "10m",
             **kwargs,
         }
 
-        url = f"{self.llm_model_attributes.llm_model_url}/api/generate"
+        url: str = f"{self.llm_model_attributes.llm_model_url}/api/generate"
         full_response = ""
 
         async for chunk in self.stream_response(url, payload):
@@ -60,7 +61,7 @@ class StreamResponse(BaseLLMClass):
         self,
         url: str,
         payload: Dict[str, Any],
-        timeout: int = 30,
+        timeout: int = 60,
     ) -> AsyncIterator[Dict[str, Any]]:
         """Streams the response from the API, yielding each chunk as it's received.
 
@@ -103,9 +104,7 @@ class StreamResponse(BaseLLMClass):
                         print(f"Error decoding JSON: {jde}", buffer.decode())
 
     def figure_out_model_response(self, response: Any) -> str:
-        """
-        Extract the content from the model's response.
-        """
+        """Extract the content from the model's response."""
         if isinstance(response, str):
             return response
         elif isinstance(response, dict):
@@ -119,13 +118,7 @@ class StreamResponse(BaseLLMClass):
         self,
         content: str,
     ) -> Tuple[str, str]:
-        # Search for # Tests or 'pytest tests' in code:
-        if not re.search("# Test|pytest tests|test", content):
-            pprint(content)
-            raise ValueError(
-                "No '# Tests' provided in the model response. Unable to parse regex."
-            )
-
+        NoTestsFoundError.validate_tests_str(content)
         # Define the minimum character count (you can change this value as needed)
         min_char_count = 500
         # Modified regex pattern
@@ -138,9 +131,47 @@ class StreamResponse(BaseLLMClass):
         else:
             code = content
 
+        for regex_str in {
+            r"### START OF TESTS",
+            r"### Pytest Tests:",
+            r"### Test Cases",
+            r"### Test Case",
+            r"### Test Implementation",
+            r"write the pytest tests for this function implementation",
+            r"### Test Case Implementation:",
+        }:
+            # Run this through for both code / content.
+            if regex_str in code:
+                code_str = code
+            elif regex_str in content:
+                code_str = content
+            else:
+                continue
+
+            if regex_str in code_str:
+                code_parts = re.split(regex_str, code_str, maxsplit=1)
+                code = code_parts[0].strip().strip("```python").strip("```")
+                pytest_tests = code_parts[1].strip().strip("```python").strip("```")
+                return code.strip(), pytest_tests.strip()
+
+        # If the string 'def test_' in found in content, but not in code, then we can assume that
+        # there was an error and that we need to retry separation of code and tests.
+        if "def test_" in content and "def test_" not in code:
+            if "### START OF TESTS" in content:
+                code_parts = re.split(r"### START OF TESTS", content, maxsplit=1)
+                code = code_parts[0]
+                pytest_tests = code_parts[1]
+
+                return code.strip(), pytest_tests.strip()
+            else:
+                raise NoTestsFoundError(
+                    "No tests found in the content. Please include tests in the content."
+                )
+
         # Look for any class definitions. If not found, then just return the code and pytest_tests as the same.
         class_def_exists = re.search(r"class [A-Z]{5,}", code)
         if not class_def_exists:
+            NoTestsFoundError.validate_tests_str(code)
             return code.strip(), code.strip()
 
         if "### Explanation:" in code:

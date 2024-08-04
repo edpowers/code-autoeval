@@ -1,6 +1,5 @@
 """Execute the unit tests for the provided function."""
 
-import contextlib
 import os
 import subprocess
 from pathlib import Path
@@ -40,14 +39,19 @@ class ExecuteUnitTests(
             and attempt == 0
             and not error_message
         ):
-            unit_test_summary = self.run_tests(
-                function_attributes.test_absolute_file_path,
-                class_model,
-                df,
-            )
+            try:
+                unit_test_summary = self.run_tests(
+                    function_attributes.test_absolute_file_path,
+                    class_model,
+                    df,
+                )
+                return unit_test_summary.return_or_raise()
+            except model.MissingCoverageException:
+                return model.UnitTestSummary.create_empty()
 
-            return unit_test_summary.return_or_raise()
+        print("No tests found or coverage is not 100%. Creating empty UnitTestSummary")
 
+        # raise Exception("No tests found or coverage is not 100%")
         return model.UnitTestSummary.create_empty()
 
     def write_code_and_tests(
@@ -124,9 +128,19 @@ class ExecuteUnitTests(
             # if df_path:
             #     pytest_command.append(f"--df_path={df_path}")
 
-            with contextlib.suppress(subprocess.CalledProcessError):
+            tests_failed = False
+
+            try:
                 # Run pytest first time to display output
                 subprocess.run(pytest_command[:-1], check=True)
+            except subprocess.CalledProcessError as e:
+                print(f"Error running pytest: {e}")
+                print(f"Command: {pytest_command}")
+                tests_failed = True
+
+            # with contextlib.suppress(subprocess.CalledProcessError):
+            #    # Run pytest first time to display output
+            #    subprocess.run(pytest_command[:-1], check=True)
 
             # Run pytest with coverage
             self.coverage_result = subprocess.run(
@@ -143,10 +157,13 @@ class ExecuteUnitTests(
                     project_root=self.common.project_root,
                     relative_path=class_model.coverage_file_path,
                     func_name=self.init_kwargs.func_name.split(".")[-1],
+                    tests_failed=tests_failed,
                 )
             )
 
-            return unit_test_summary.print_summary()
+            unit_test_summary.print_summary()
+
+            return unit_test_summary.return_or_raise()
 
         finally:
             # Clean up the temporary dataframe file if it was created

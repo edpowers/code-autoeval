@@ -8,4 +8,4 @@ def test_mock_llmmodelattributes(fixture_mock_llmmodelattributes):
     assert fixture_mock_llmmodelattributes.llm_model_name == "example_model"
     assert hasattr(fixture_mock_llmmodelattributes, 'llm_model_url')
     assert isinstance(fixture_mock_llmmodelattributes.llm_model_url, str)
-    assert fixture_mock_llmmodelattributes.llm_model_url == "http://example.com/model"
+    assert fixture_mock_llmmodelattributes.llm_model_url == "http://example.com"

@@ -14,10 +14,11 @@ from pydantic import BaseModel
 
 from code_autoeval.llm_model import imports
 from code_autoeval.llm_model.hierarchy.fixture_generation.split_and_verify_code import (
-    CodeVerificationError, EmptyTestCodeError, SplitAndVerifyCode,
-    TestCodeVerificationError)
-
-
+    CodeVerificationError,
+    EmptyTestCodeError,
+    SplitAndVerifyCode,
+    TestCodeVerificationError,
+)
 from code_autoeval.llm_model.utils import model_response
 
 IMPORT_BANK = {
@@ -33,7 +34,9 @@ IMPORT_BANK = {
 
 
 class FixtureGenerator(BaseModel):
-    stream_response: model_response.StreamResponse  # Replace with the actual LLM model type
+    stream_response: (
+        model_response.StreamResponse
+    )  # Replace with the actual LLM model type
     class_hierarchy: Dict[int, Dict[str, dict]]
     class_data_factory: class_data_model.ClassDataModelFactory  # Instantiated
     base_output_dir: str

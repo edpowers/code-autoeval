@@ -2,13 +2,13 @@ from unittest.mock import MagicMock
 import pytest
 from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import ParseUnitTestCoverage
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 from code_autoeval.llm_model.utils.log_funcs.logging_funcs import LoggingFuncs
 from generated_code.fixtures.fixtures.loggingfuncs_fixture import fixture_mock_loggingfuncs
-from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
-from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
 from generated_code.fixtures.fixtures.initkwargs_fixture import fixture_mock_initkwargs
-@pytest.fixture
+from generated_code.fixtures.fixtures.llmmodelattributes_fixture import fixture_mock_llmmodelattributes
+from generated_code.fixtures.fixtures.commonattributes_fixture import fixture_mock_commonattributes
+@pytest.fixture(name="fixture_mock_parseunittestcoverage")
 def fixture_mock_parseunittestcoverage():
     mock = MagicMock(spec=ParseUnitTestCoverage)
     mock.coverage_result = None

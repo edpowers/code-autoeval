@@ -4,7 +4,7 @@ import pytest
 from generated_code.fixtures.fixtures.basellmclass_fixture import fixture_mock_basellmclass
 from code_autoeval.llm_model.utils.base_llm_class import BaseLLMClass
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_basellmclass(fixture_mock_basellmclass):
     assert isinstance(fixture_mock_basellmclass, BaseLLMClass)
     assert hasattr(fixture_mock_basellmclass, 'coverage_result')

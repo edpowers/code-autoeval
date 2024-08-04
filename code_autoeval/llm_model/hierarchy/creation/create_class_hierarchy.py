@@ -36,7 +36,7 @@ class CreateClassHierarchy:
 
     @classmethod
     def construct_class_hierarchy(
-        cls, class_path: str = "code_autoeval.llm_model.llm_model.LLMModel"
+        cls, class_path: str = "code_autoeval.llm_model.llm_model_client.LLMModelClient"
     ) -> ClassHierarchy:
         instance = cls()
         class_hierarchy = instance._analyze_class(class_path)

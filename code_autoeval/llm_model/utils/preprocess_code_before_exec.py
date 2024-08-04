@@ -1,13 +1,12 @@
 """Class for preprocessing code before execution."""
 
-import re
 from typing import Optional, Tuple
 
 from multiuse.model import class_data_model
 
 from code_autoeval.llm_model import imports
+from code_autoeval.llm_model.utils import code_cleaning, extraction, model, validation
 
-from code_autoeval.llm_model.utils import model, extraction, code_cleaning, validation
 # import flake8
 
 
@@ -40,6 +39,9 @@ class PreProcessCodeBeforeExec(
         )
 
         if was_modified:
+            class_model.raise_if_no_test_in_code(code)
+            self._log_code(code, "Code before 2nd modification: ")
+
             code, was_modified = self.preprocess_code(
                 code,
                 max_line_length=max_line_length,
@@ -47,14 +49,22 @@ class PreProcessCodeBeforeExec(
                 func_attributes=func_attributes,
                 **kwargs,
             )
-        if was_modified:
-            raise ValueError("Code was modified twice during preprocessing")
 
         self._log_code(code, "Code before pyflakes + isort: ")
 
         code, was_modified = self.run_pyflakes_isort_pipeline(
             code, max_line_length=max_line_length, class_model=class_model, **kwargs
         )
+
+        code = extraction.PythonClassManager.extract_remove_class_from_file(
+            class_model.class_name,
+            # file_path=str(func_attributes.test_absolute_file_path),
+            content=code,
+        )
+
+        class_model.raise_if_no_test_in_code(code)
+
+        # Remove any invalid imports.
 
         return code
 
@@ -73,6 +83,14 @@ class PreProcessCodeBeforeExec(
         )
 
         if is_pytest_format:
+            if not func_attributes.test_absolute_file_path.exists():
+                # Then write the code to the test file.
+                with open(func_attributes.test_absolute_file_path, "w") as file:
+                    file.write(code)
+
+            code = self.fix_syntax_errors_for_n_lines(
+                file_path=str(func_attributes.test_absolute_file_path), nlines=10
+            )
             # Then verify that we don't have the class definition in the test file.
             # the class definition would be provided by the class_model
             code = extraction.PythonClassManager.extract_remove_class_from_file(
@@ -80,9 +98,15 @@ class PreProcessCodeBeforeExec(
                 file_path=str(func_attributes.test_absolute_file_path),
                 content=code,
             )
+            class_model.raise_if_no_test_in_code(code)
 
         return self.run_flake8_pipeline_with_temp_file(
-            code, class_model=class_model, original_imports=original_imports, **kwargs
+            code,
+            class_model=class_model,
+            func_attributes=func_attributes,
+            original_imports=original_imports,
+            unique_project_imports=self.unique_imports_dict,
+            **kwargs,
         )
 
     @validation.validate_code()

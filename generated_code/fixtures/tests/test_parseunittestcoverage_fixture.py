@@ -3,7 +3,7 @@ import pytest
 from generated_code.fixtures.fixtures.parseunittestcoverage_fixture import fixture_mock_parseunittestcoverage
 from code_autoeval.llm_model.utils.extraction.parse_unit_test_coverage import ParseUnitTestCoverage
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_parseunittestcoverage(fixture_mock_parseunittestcoverage):
     assert isinstance(fixture_mock_parseunittestcoverage, ParseUnitTestCoverage)
     assert hasattr(fixture_mock_parseunittestcoverage, '_find_function_bounds')

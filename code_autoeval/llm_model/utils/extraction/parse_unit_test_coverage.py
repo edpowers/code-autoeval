@@ -41,10 +41,15 @@ class ParseUnitTestCoverage(logging_funcs.LoggingFuncs):
         project_root: Path,
         relative_path: str,
         func_name: str,
+        tests_failed: bool = False,
     ) -> model.UnitTestSummary:
         try:
             return ParseUnitTestCoverage.run_parse_unit_test_cov(
-                coverage_output, project_root, relative_path, func_name
+                coverage_output,
+                project_root,
+                relative_path,
+                func_name,
+                tests_failed,
             )
         except (ImportError, SyntaxError) as oe:
             raise model.FormattingError(
@@ -69,6 +74,7 @@ class ParseUnitTestCoverage(logging_funcs.LoggingFuncs):
         project_root: Path,
         relative_path: str,
         func_name: str,
+        tests_failed: bool = False,
     ) -> model.UnitTestSummary:
         instance = cls()
         parse_result = instance._parse_coverage_output(coverage_output)
@@ -101,6 +107,7 @@ class ParseUnitTestCoverage(logging_funcs.LoggingFuncs):
             extracted_coverage=instance._parse_coverage_v1(
                 coverage_output, str(file_path)
             ),
+            tests_failed=tests_failed,
         )
 
     def _parse_coverage_v1(self, output: str, target_file: str) -> float:

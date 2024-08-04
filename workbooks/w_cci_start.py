@@ -10,12 +10,18 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional
 
+import nest_asyncio
 import pandas as pd
 from multiuse.filepaths.find_classes_in_dir import FindClassesInDir
 from multiuse.filepaths.find_project_root import FindProjectRoot
 from multiuse.filepaths.system_utils import SystemUtils
 from multiuse.log_methods.custom_logging_funcs import CustomLoggingFuncs
 from multiuse.model import class_data_model
+
+from code_autoeval.llm_model.hierarchy.creation import create_class_hierarchy
+from code_autoeval.llm_model.hierarchy.filtration import filter_class_hierarchy
+
+nest_asyncio.apply()
 
 print(CustomLoggingFuncs)
 
@@ -26,12 +32,12 @@ if str(path_cwd) not in sys.path:
     sys.path.insert(0, str(path_cwd))
 
 from code_autoeval.llm_model import imports
-from code_autoeval.llm_model.llm_model import LLMModel
+from code_autoeval.llm_model.llm_model_client import LLMModelClient
 from code_autoeval.llm_model.utils import extraction
 
 # %%
 
-llm_model_client = LLMModel()
+llm_model_client = LLMModelClient()
 
 # %%
 
@@ -191,7 +197,7 @@ async def main2() -> None:
 # %%
 # %%
 
-llm_model_client = LLMModel()
+llm_model_client = LLMModelClient()
 
 unique_imports = (
     imports.find_imports_from_dir.FindImportsFromDir.find_unique_imports_from_dir()
@@ -222,20 +228,16 @@ fixture_parser.parse_directory(
 )
 
 
+filter_hierarchy_classes = filter_class_hierarchy.FilterClassHierarchy()
+filter_hierarchy_classes.build_hierarchy_levels(
+    create_class_hierarchy.CreateClassHierarchy.construct_class_hierarchy().filtered_hierarchy
+)
+filter_hierarchy_classes.get_hierarchy_levels()
+flattened_hierachy = filter_hierarchy_classes.flatten_hierarchy()
+class_data_models = class_data_factory.sort_by_hierarchy(flattened_hierachy)
+
+
 display(class_data_models)
-
-# %%
-
-
-class_data_models[0]
-
-# %%
-
-fixture_parser.fixtures_by_file
-
-# %%
-
-fixture_parser.get_fixtures_for_class(class_data_models[1].class_name)
 
 # %%
 
@@ -245,7 +247,7 @@ fixture_parser.get_fixtures_for_class(class_data_models[1].class_name)
 
 async def generate_code_for_classes(
     class_data_models: List[class_data_model.ClassDataModel],
-    llm_model_client: LLMModel,
+    llm_model_client: LLMModelClient,
     generated_code_dir: Path,
     clean_directory_before_start: bool = True,
     goal: str = "Refactor code to handle edge cases and improve efficiency.",
@@ -278,6 +280,9 @@ async def generate_code_for_classes(
             query = (
                 f"Implement the {method} method for the {class_model.class_name} class."
             )
+
+            # display(class_model)
+
             try:
                 code, serialized_result, context, pytest_tests = (
                     await llm_model_client.code_generator(
@@ -288,6 +293,7 @@ async def generate_code_for_classes(
                         debug=True,
                         skip_generate_fake_data=True,
                         class_model=class_model,
+                        fixture_parser=fixture_parser,
                     )
                 )
 
@@ -316,7 +322,7 @@ async def main3(clean_directory_before_start: bool = False) -> None:
 
 
 # Run the async main function
-value = asyncio.run(main3(clean_directory_before_start=True))
+value = asyncio.run(main3(clean_directory_before_start=False))
 
 
 # %%
@@ -331,64 +337,48 @@ class_data_models[0]
 # %%
 
 
-unique_imports = FindImportsFromDir.find_unique_imports_from_dir()
-unique_imports
-
 # %%
 
 
-sorted(list(unique_imports.keys()))
+# file_path = "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/llm_model/utils/model_response/test_SerializeDataframes_deserialize_dataframe.py"
+# from code_autoeval.llm_model.utils.code_cleaning.remove_invalid_imports import RemoveInvalidImports
+# RemoveInvalidImports.remove_invalid_imports(file_path)
+
 # %%
 
+import subprocess
+from pprint import pprint
 
-import ast
-from typing import Dict, List
-
-
-def extract_imports(file_content: str) -> Dict[str, str]:
-    def format_import(module: str, name: str, alias: str = None) -> str:
-        if alias and alias != name:
-            return f"from {module} import {name} as {alias}"
-        return f"from {module} import {name}"
-
-    imports = {}
-    tree = ast.parse(file_content)
-
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                imports[alias.asname or alias.name] = f"import {alias.name}"
-        elif isinstance(node, ast.ImportFrom):
-            module = node.module or ""
-            for alias in node.names:
-                name = alias.name
-                asname = alias.asname
-                import_str = format_import(module, name, asname)
-                imports[asname or name] = import_str
-
-    return imports
-
-
-project_root = FindProjectRoot.find_project_root()
-
-
-f_llm_model = (
-    "/Users/eddyt/Algo/projects/code-autoeval/code_autoeval/llm_model/llm_model.py"
+result = subprocess.run(
+    ["mypy", file_path],
+    capture_output=True,
+    text=True,
 )
 
-with open(f_llm_model, "r") as f:
-    content = f.read()
-
-extracted_imports = extract_imports(content)
-
+pprint(result)
 
 # %%
 
 
-llm_model_client = LLMModel()
+pprint(result)
 
-base_hierarchy_prompt = llm_model_client.generate_prompt_for_mock_hierarchy(
-    class_hierarchy
+# %%
+
+file_path = "/Users/eddyt/Algo/projects/code-autoeval/generated_code/tests/code_autoeval/llm_model/utils/model_response/test_SerializeDataframes_serialize_dataframe.py"
+
+flake8_result = subprocess.run(
+    ["flake8", "--select=E999", file_path],
+    capture_output=True,
+    text=True,
 )
 
-c = await self.ask_backend_model(query, system_prompt=system_prompt)
+pprint(str(flake8_result))
+
+# %%
+
+
+from code_autoeval.llm_model.imports.run_flake8_fix_imports import RunFlake8FixImports
+
+RunFlake8FixImports.comment_out_syntax_errors(file_path)
+
+# %%

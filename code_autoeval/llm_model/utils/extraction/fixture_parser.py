@@ -10,6 +10,14 @@ from code_autoeval.llm_model.utils import model
 class FixtureParser:
     """Extract the fixture information from auto-generated code.
 
+    Attributes
+    ----------
+    fixtures_by_file : Dict[str, List[model.FixtureInfo]]
+        A dictionary mapping the file path to a list of fixture information.
+
+    fixtures_by_class : Dict[str, model.ClassFixtures]
+        A dictionary mapping the class name to the fixtures associated with that class.
+
     Example
     -------
     >>> parser = FixtureParser()
@@ -21,9 +29,13 @@ class FixtureParser:
     >>> parser.get_fixtures_for_class("ClassName")
     """
 
+    fixtures_by_file: Dict[str, List[model.FixtureInfo]] = {}
+    fixtures_by_class: Dict[str, model.ClassFixtures] = {}
+
     def __init__(self):
-        self.fixtures_by_file: Dict[str, List[model.FixtureInfo]] = {}
-        self.fixtures_by_class: Dict[str, model.ClassFixtures] = {}
+        ...
+        # self.fixtures_by_file: Dict[str, List[model.FixtureInfo]] = {}
+        # self.fixtures_by_class: Dict[str, model.ClassFixtures] = {}
 
     def parse_file(self, file_path: str) -> List[model.FixtureInfo]:
         with open(file_path, "r") as file:
@@ -66,8 +78,10 @@ class FixtureParser:
         for fixture in all_fixtures:
             if fixture.imported_class_name:
                 if fixture.imported_class_name not in self.fixtures_by_class:
-                    self.fixtures_by_class[fixture.imported_class_name] = model.ClassFixtures(
-                        class_name=fixture.imported_class_name, fixtures=[]
+                    self.fixtures_by_class[fixture.imported_class_name] = (
+                        model.ClassFixtures(
+                            class_name=fixture.imported_class_name, fixtures=[]
+                        )
                     )
                 self.fixtures_by_class[fixture.imported_class_name].fixtures.append(
                     fixture

@@ -4,7 +4,6 @@ import json
 import tempfile
 from typing import Optional, Union
 
-
 import pandas as pd
 
 
@@ -14,6 +13,9 @@ class SerializeDataframes:
     @staticmethod
     def store_df_in_temp_file(df: Optional[pd.DataFrame] = None) -> str:
         """Store the dataframe in a temporary file."""
+        if not isinstance(df, pd.DataFrame) and df is not None:
+            raise TypeError("The provided dataframe is not a pandas DataFrame.")
+
         df_path = ""
         # Create a temporary file to store the dataframe if provided
         if df is not None:
@@ -26,6 +28,12 @@ class SerializeDataframes:
         return df_path
 
     def serialize_dataframe(self, df: Union[pd.DataFrame, dict]) -> dict:
+
+        if not isinstance(df, (pd.DataFrame, dict)):
+            raise TypeError(
+                "The provided data is not a pandas DataFrame or dictionary."
+            )
+
         if isinstance(df, pd.DataFrame):
             if len(df) <= 15:
                 sample = df
@@ -44,8 +52,26 @@ class SerializeDataframes:
         return df
 
     def deserialize_dataframe(self, obj: dict) -> pd.DataFrame:
+        """
+        Deserialize a dictionary into a DataFrame.
+
+        :param obj: The dictionary to deserialize.
+        :return: The deserialized DataFrame or the input object if not deserializable.
+        """
+        # Validate that the object is a dictionary and has the correct structure
         if isinstance(obj, dict) and obj.get("type") == "DataFrame":
-            df = pd.read_json(json.dumps(obj["data"]), orient="split")
-            df = df.astype(eval(obj["dtypes"]))
-            return df
+            try:
+                # Deserialize the DataFrame
+                df = pd.read_json(json.dumps(obj["data"]), orient="split")
+
+                # Safely parse the dtypes dictionary
+                dtypes = json.loads(obj["dtypes"].replace("'", '"'))
+                df = df.astype(dtypes)
+                return df
+            except Exception as e:
+                # Handle any exceptions that may occur during deserialization
+                print(f"Error during deserialization: {e}")
+                return obj
+
+        # Return the original object if it does not match the expected structure
         return obj

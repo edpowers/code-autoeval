@@ -4,7 +4,7 @@ import pytest
 from generated_code.fixtures.fixtures.commonloggingstatements_fixture import fixture_mock_commonloggingstatements
 from code_autoeval.llm_model.utils.log_funcs.common_logging_statements import CommonLoggingStatements
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_commonloggingstatements(fixture_mock_commonloggingstatements):
     assert isinstance(fixture_mock_commonloggingstatements, CommonLoggingStatements)
     assert hasattr(fixture_mock_commonloggingstatements, '_log_code')

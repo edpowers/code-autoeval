@@ -24,12 +24,19 @@ class PythonClassManager:
             and not Path(file_path).exists()
             and content
         ):
+            print(
+                f"PythonClassManager - Creating a new file at {file_path} with the provided content."
+            )
             # Then create the actual file. Easier to do this here than in the constructor
             with open(file_path, "w") as file:
                 file.write(content)
         elif not file_path:
             if not content:
                 raise ValueError("Either file_path or content must be provided.")
+
+            print(
+                "PythonClassManager - No file path provided, so creating a temporary file from valid content."
+            )
 
             # Then assume that no valid file path was passed in
             # so we should make a temporary file
@@ -39,16 +46,22 @@ class PythonClassManager:
                 # Mark the is_temp_file flag as True
                 self.is_temp_file = True
 
-        if not content:
+        if not content and file_path:
             with open(file_path, "r") as file:
                 content = file.read()
+
+        if not content:
+            raise ValueError("The content is empty - and the file is empty.")
 
         self.file_path = file_path
         self.content = content
 
     @classmethod
     def extract_remove_class_from_file(
-        cls, name_of_class_to_remove: str, file_path: str = "", content: str = ""
+        cls,
+        name_of_class_to_remove: str,
+        file_path: str = "",
+        content: str = "",
     ) -> str:
         manager = PythonClassManager(file_path, content=content)
 
@@ -89,12 +102,14 @@ class PythonClassManager:
             print(f"Error: {str(e)}")
 
         # Then read the file path back into the content
-        with open(file_path, "r") as file:
-            content = file.read()
+        with open(file_path, "r") as f:
+            content = f.read()
 
         # If this was a temporary file, then remove it
         if manager.is_temp_file:
             Path(file_path).unlink(missing_ok=True)
+        if not content:
+            raise ValueError("The content is empty.")
 
         return content
 
@@ -180,6 +195,9 @@ class PythonClassManager:
 
         with open(self.file_path, "r") as file:
             lines = file.readlines()
+
+            if not lines:
+                raise ValueError("The file is empty.")
 
         with tempfile.NamedTemporaryFile(mode="w", delete=False) as temp_file:
             skip_lines = set()

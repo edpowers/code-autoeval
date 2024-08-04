@@ -89,6 +89,17 @@ class ExtractImportsFromFile(logging_funcs.LoggingFuncs):
                 imports_and_classes[node.name] = format_import(
                     relative_fpath, node.name
                 )
+            # Identify constants within the file.
+            elif isinstance(node, ast.Assign):
+                for target in node.targets:
+                    if isinstance(target, ast.Name) and target.id.isupper():
+                        # Identify constants
+                        if isinstance(node.value, ast.Dict):
+                            for key, value in zip(node.value.keys, node.value.values):
+                                if isinstance(key, ast.Str) and isinstance(
+                                    value, ast.Name
+                                ):
+                                    imports_and_classes[key.s] = f"import {value.id}"
 
         # Add import statements for classes in __all__ that weren't found in the file
         for name in all_names:

@@ -4,7 +4,7 @@ import pytest
 from generated_code.fixtures.fixtures.loggingfuncs_fixture import fixture_mock_loggingfuncs
 from code_autoeval.llm_model.utils.log_funcs.logging_funcs import LoggingFuncs
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_loggingfuncs(fixture_mock_loggingfuncs):
     assert isinstance(fixture_mock_loggingfuncs, LoggingFuncs)
     assert hasattr(fixture_mock_loggingfuncs, 'coverage_result')

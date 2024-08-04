@@ -1,8 +1,9 @@
+from code_autoeval.llm_model.utils.log_funcs.logging_funcs import LoggingFuncs
 import pytest
 from generated_code.fixtures.fixtures.extractimportsfromfile_fixture import fixture_mock_extractimportsfromfile
 from code_autoeval.llm_model.imports.extract_imports_from_file import ExtractImportsFromFile
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 def test_mock_extractimportsfromfile(fixture_mock_extractimportsfromfile):
     assert isinstance(fixture_mock_extractimportsfromfile, ExtractImportsFromFile)
     assert hasattr(fixture_mock_extractimportsfromfile, '_read_in_original_code')
@@ -23,3 +24,4 @@ def test_mock_extractimportsfromfile(fixture_mock_extractimportsfromfile):
     assert isinstance(fixture_mock_extractimportsfromfile.unique_imports_dict, Dict)
     assert hasattr(fixture_mock_extractimportsfromfile, 'find_original_code_and_imports')
     assert isinstance(fixture_mock_extractimportsfromfile.find_original_code_and_imports, classmethod)
+    assert isinstance(fixture_mock_extractimportsfromfile, LoggingFuncs)

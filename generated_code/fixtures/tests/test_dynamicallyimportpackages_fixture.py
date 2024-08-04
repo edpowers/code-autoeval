@@ -2,7 +2,7 @@ import pytest
 from generated_code.fixtures.fixtures.dynamicallyimportpackages_fixture import fixture_mock_dynamicallyimportpackages
 from code_autoeval.llm_model.imports.dynamically_import_packages import DynamicallyImportPackages
 from pathlib import Path
-from typing import Any, Dict, Set
+from typing import Any, Dict, Optional, Set
 def test_mock_dynamicallyimportpackages(fixture_mock_dynamicallyimportpackages):
     assert isinstance(fixture_mock_dynamicallyimportpackages, DynamicallyImportPackages)
     assert hasattr(fixture_mock_dynamicallyimportpackages, '_extract_libraries')
